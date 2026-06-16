@@ -1,0 +1,8 @@
+/* Validates the scss-modules pipeline + the _mantine.scss mixins. */
+.panel {
+  border-radius: var(--mantine-radius-md);
+
+  @include mantine.dark {
+    outline: 1px solid var(--mantine-color-dark-4);
+  }
+}

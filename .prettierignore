@@ -1,0 +1,7 @@
+# Ignore artifacts:
+build
+coverage
+.wxt
+.output
+public
+test-pages/tw3-play.js
