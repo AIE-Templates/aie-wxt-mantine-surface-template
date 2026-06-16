@@ -41,7 +41,7 @@ pnpm dev:firefox         # Firefox
 
 ### カスタマイズ設定
 
-1. **名前空間の定義:** `src/constants` 内の `PROJECT_PREFIX` を変更してください。この値は `postcss.config.cjs` および `global.css` と確実に同期させる必要があります。これにより、CSS変数およびコアとなる `.aie-surface-root` クラスに独自の接頭辞が付与され、ホストページとのスタイルの衝突を根本から防ぐことができます。
+1. **名前空間の定義:** `PROJECT_PREFIX` の唯一の信頼できる情報源（single source of truth）は、リポジトリルートの **`prefix.cjs`** にあります。この一行を変更するだけで、`src/constants`、`postcss.config.cjs`、`scripts/audit-css-vars.mjs` がすべて自動的に追従します。手動で同期する必要があるのは `global.css` のみです（CSSは定数をインポートできないため）——その中の `.aie-surface-root` セレクタと `--aie-z-*` 変数を一致するように更新してください。このミラーを忘れても確実に検知されます: `pnpm test` が失敗し、`pnpm dev` / `pnpm build` は `check-prefix-sync` Vite プラグインによって警告またはビルド失敗となります。この接頭辞はCSS変数とコアとなるサーフェスルートクラスに名前空間を付与し、ホストページとのスタイルの衝突を防ぎます。
 2. **Manifest の構成:** `wxt.config.ts` 内の `manifest` 関数にて `name` と `permissions` を調整してください。実装は Manifest V3 (MV3) に準拠して行います。Firefox向けのMV2へのダウングレードは、ビルド時にWXTが自動的に処理します。
 3. **拡張機能IDの固定 (任意):** `.env.example` を `.env` にコピーし、`WXT_EXTENSION_KEY` を設定します。これにより、環境変数を通じてマニフェストの `key` が安全に注入されます。ビルド出力に組み込まれるのは `WXT_` または `VITE_` で始まる環境変数のみです。機密情報はバージョン管理対象外の `.env` で厳重に管理してください。
 4. **UIの追加:** `src/entrypoints/` 配下の各エントリーポイントは、`src/react-app/apps/` にあるReactアプリケーションをマウントする役割のみを担います。新しい画面を追加する場合は、既存のアプリディレクトリを複製し、対応するエントリーポイントを設定してください。
@@ -172,7 +172,7 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 
 すべてのルートレベルのCSS変数は、shadowツリー内の `.aie-surface-root` スコープ内に安全に封じ込められています。これにより、外部の予測不可能な `:root` や `:host` セレクタから物理的に隔離されます。デザイントークンのスコープの安全性を監査するために、定期的に `pnpm audit:css` を実行してください。
 
-**Z-Index 階層:** `src/constants` および `global.css` に定義されています。
+**Z-Index 階層:** `src/constants` の `Z_INDEX` 定数として定義され、`global.css` に `--<prefix>-z-*` CSS変数としてミラーリングされます（`src/constants/index.test.ts` のテストが両者の同期を保証します）。
 階層の順序: `floatUi < mainUi < modal < popover < notification < max`。
 
 ---
@@ -186,7 +186,7 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 5. **Content トラックのシンプル化:** TailwindのクラスやReactノードを使用して、ホストページのDOMを直接操作しないでください。Vanilla DOM API と独自のプレフィックスを持つCSSクラスを併用してください。
 6. **認証ロジックの隔離:** 機密情報を含むUIワークフローは、Main World から厳格に隔離してください。
 7. **フローティングコンポーネントの制約:** すべての Popover、Tooltip、Menu コンポーネントは、明示的に `zIndex: Z_INDEX.popover` および `floatingStrategy: 'fixed'` を使用するように設定してください。
-8. **名前空間の遵守:** `PROJECT_PREFIX` が `src/constants`、`postcss.config.cjs`、および `global.css` 間で完全に同期されていることを確認してください。
+8. **名前空間の遵守:** `PROJECT_PREFIX` は `prefix.cjs`（唯一の信頼できる情報源）でのみ変更してください。`src/constants`、`postcss.config.cjs`、CSS監査はそこから派生します。手動ミラーは `global.css` のみであり、`pnpm test` / `pnpm build` がドリフトを防ぎます。
 
 ---
 

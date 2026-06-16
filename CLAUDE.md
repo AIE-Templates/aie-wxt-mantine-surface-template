@@ -16,7 +16,7 @@ To ensure the extension functions correctly and avoids conflicts with host pages
 4. **Surface Context:** Always use `useSurface()` instead of `document.body` for UI placement.
 5. **Z-Index Precision:** Ensure `Z_INDEX` values are 6 significant digits or fewer. `lightningcss` parses CSS variables to 32-bit floats, which can cause large integers to collapse.
 6. **Satellite Constraints:** Satellites provide keyboard event isolation (`isolateEvents`) and maintain their position relative to their anchor node. Floating layers should use portals to attach to the host surface.
-7. **Namespace Prefix:** If you change `PROJECT_PREFIX`, update it simultaneously in `src/constants`, `postcss.config.cjs`, and `global.css`.
+7. **Namespace Prefix:** `PROJECT_PREFIX` has a single source of truth in `prefix.cjs` (repo root). `src/constants` re-exports it, and `postcss.config.cjs` and `scripts/audit-css-vars.mjs` read it directly, so they all follow one literal. The only place that still mirrors the prefix by hand is `global.css` (CSS can't import) — change it there too. `pnpm test` guards that mirror: the `Z_INDEX` suite fails loudly if `global.css` drifts from the prefix.
 
 ## Testing Changes
 - Run `pnpm compile && pnpm lint && pnpm test && pnpm build && pnpm audit:css` before committing.

@@ -41,7 +41,7 @@ pnpm dev:firefox         # Firefox
 
 ### Customization
 
-1. **Configure the Namespace:** Update the `PROJECT_PREFIX` in `src/constants`. Ensure this remains synchronized across `postcss.config.cjs` and `global.css`. This prefixes your CSS variables and the core `.aie-surface-root` class to prevent conflicts with the host page.
+1. **Configure the Namespace:** `PROJECT_PREFIX` has a single source of truth in **`prefix.cjs`** (repo root). Change that one line and `src/constants`, `postcss.config.cjs`, and `scripts/audit-css-vars.mjs` all follow it automatically. The only place you must mirror it by hand is `global.css` (CSS can't import the constant) — update the `.aie-surface-root` selectors and `--aie-z-*` variables there to match. Forgetting that mirror is caught loudly: `pnpm test` fails and `pnpm dev` / `pnpm build` warn or hard-fail via the `check-prefix-sync` Vite plugin. This prefix namespaces your CSS variables and the core surface-root class to prevent conflicts with the host page.
 2. **Define the Manifest:** Adjust the `name` and `permissions` within the `manifest` function in `wxt.config.ts`. Target Manifest V3 (MV3); WXT automatically manages the down-conversion for Firefox.
 3. **Pin the Extension ID (Optional):** Copy `.env.example` to `.env` and set the `WXT_EXTENSION_KEY`. This securely injects your manifest `key` via environment variables. Only variables prefixed with `WXT_` or `VITE_` are included in the build output. Always maintain secrets in `.env`, not in committed configuration files.
 4. **Add UI Surfaces:** Every entry point under `src/entrypoints/` mounts a React application from `src/react-app/apps/`. To introduce a new surface, duplicate an existing app directory and configure the corresponding entry point.
@@ -172,7 +172,7 @@ While the Shadow DOM provides robust encapsulation, CSS inheritance can still in
 
 All root-level CSS variables are securely scoped within `.aie-surface-root` inside the shadow tree. This isolates them from external `:root` or `:host` selectors. Execute `pnpm audit:css` to verify the integrity of your design tokens.
 
-**Z-index Hierarchy:** Defined in `src/constants` and `global.css`.
+**Z-index Hierarchy:** Defined as the `Z_INDEX` constant in `src/constants` and mirrored as `--<prefix>-z-*` CSS variables in `global.css` (a test in `src/constants/index.test.ts` keeps the two in sync).
 Order: `floatUi < mainUi < modal < popover < notification < max`.
 
 ---
@@ -186,7 +186,7 @@ Order: `floatUi < mainUi < modal < popover < notification < max`.
 5. **Maintain a Simple Content Track:** Do not apply Tailwind classes or React nodes for raw host-page mutations. Rely on vanilla DOM manipulation and explicitly prefixed CSS classes.
 6. **Isolate Authentication:** Keep sensitive UI workflows strictly out of the main world.
 7. **Constrain Floating Components:** Configure Popovers, Tooltips, and Menus to use `zIndex: Z_INDEX.popover` and `floatingStrategy: 'fixed'`.
-8. **Enforce the Namespace:** Ensure `PROJECT_PREFIX` is perfectly synchronized across `src/constants`, `postcss.config.cjs`, and `global.css`.
+8. **Enforce the Namespace:** Change `PROJECT_PREFIX` only in `prefix.cjs` (the single source of truth); `src/constants`, `postcss.config.cjs`, and the CSS audit derive from it. Only `global.css` is a manual mirror — and `pnpm test` / `pnpm build` guard it against drift.
 
 ---
 

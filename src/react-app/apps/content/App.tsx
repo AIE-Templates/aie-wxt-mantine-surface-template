@@ -10,6 +10,7 @@
 import { useRef, useState } from 'react';
 import { Badge, Button, Group, Paper, Popover, Text, TextInput, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
+import { Z_INDEX } from '@/constants';
 import { createSatellite, type SatelliteHandle } from '@/surface/satellite';
 import DemoPanel from '@/react-app/components/DemoPanel';
 
@@ -71,11 +72,15 @@ export default function ContentApp() {
     satellitesRef.current = [];
   };
 
+  // Panel stacking reads the z-index straight from Z_INDEX — the single source of
+  // truth in '@/constants' that global.css mirrors as `--<prefix>-z-*` CSS vars.
+  // Reading the constant keeps this prefix-agnostic: nothing to update here when
+  // PROJECT_PREFIX changes (equivalent to the CSS var `var(--<prefix>-z-main-ui)`).
   return (
     <Paper
       withBorder
       shadow="lg"
-      style={{ position: 'fixed', right: 16, bottom: 16, width: 360, zIndex: 'var(--aie-z-main-ui)' }}
+      style={{ position: 'fixed', right: 16, bottom: 16, width: 360, zIndex: Z_INDEX.mainUi }}
     >
       <DemoPanel surfaceLabel="content" />
       <Group gap="xs" p="md" pt={0}>

@@ -1,13 +1,20 @@
 /**
  * @module constants
  *
- * Single source of truth for the project namespace. Everything that must be
- * collision-free against host pages derives from PROJECT_PREFIX: custom
- * element tags, storage keys, CSS class names, z-index variables and the
- * Tailwind variable prefix (see postcss.config.cjs — kept in sync manually).
+ * Derives everything that must be collision-free against host pages from
+ * PROJECT_PREFIX: custom element tags, storage keys, CSS class names, z-index
+ * variables and the Tailwind variable prefix.
+ *
+ * PROJECT_PREFIX itself lives in `prefix.cjs` at the repo root — the ONE place
+ * to change when forking. It is plain CommonJS so the non-TS build tooling that
+ * also needs the prefix (postcss.config.cjs, scripts/audit-css-vars.mjs) reads
+ * the exact same literal. Only global.css mirrors it by hand (CSS can't import);
+ * a test in ./index.test.ts guards that mirror.
  */
 
-export const PROJECT_PREFIX = 'aie';
+import { PROJECT_PREFIX } from '../../prefix.cjs';
+
+export { PROJECT_PREFIX };
 
 /** Custom element tag hosting the main in-page shadow surface (one per page). */
 export const SHADOW_SURFACE_TAG = `${PROJECT_PREFIX}-surface`;

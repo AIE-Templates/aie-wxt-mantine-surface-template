@@ -1,6 +1,6 @@
-// NOTE: keep this prefix in sync with PROJECT_PREFIX in src/constants/index.ts
-// (postcss config is plain cjs and cannot import from the TS source tree).
-const PROJECT_PREFIX = 'aie';
+// Single source of truth for the prefix, shared with src/constants (which
+// re-exports it) and scripts/audit-css-vars.mjs.
+const { PROJECT_PREFIX } = require('./prefix.cjs');
 
 module.exports = {
   plugins: {
@@ -24,7 +24,7 @@ module.exports = {
     // vars (`--color-*`, `--spacing`, …) and Mantine's layer vars are emitted on
     // `:root, :host`. `:host` re-anchors them on the shadow host, which defeats
     // INHERITED host-page values (host uses the same lib) — but NOT an outer rule
-    // that explicitly matches the host element (`aie-surface{…}` / `*{…}`),
+    // that explicitly matches the host element (`<prefix>-surface{…}` / `*{…}`),
     // because per CSS scoping such outer rules beat `:host`. Re-anchoring onto
     // `.<prefix>-surface-root` — a node INSIDE the shadow, unreachable by any
     // outer selector — closes that gap so the whole theme-var layer shares the
@@ -34,7 +34,7 @@ module.exports = {
     // these layered values.
     //
     // NOTE: we deliberately do NOT rewrite Tailwind's `@layer properties`
-    // fallback selector (`*, ::before, ::after, ::backdrop`). It sets `--aie-tw-*`
+    // fallback selector (`*, ::before, ::after, ::backdrop`). It sets `--<prefix>-tw-*`
     // initial values per-element for browsers WITHOUT @property; rewriting it to
     // `:root` makes it inert inside a shadow root (`:root` matches nothing
     // there), breaking those transient vars on ancient browsers. `*` is shadow-

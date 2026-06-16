@@ -76,7 +76,7 @@ export default function DemoPanel({ surfaceLabel }: { surfaceLabel: string }) {
       </Group>
 
       {/* ring/shadow/rotate depend on Tailwind's internal variables — after
-          the postcss rename these must work via --aie-tw-* (@property). */}
+          the postcss rename these must work via --<prefix>-tw-* (@property). */}
       <div className="flex items-center gap-2">
         <div className="size-6 rotate-12 rounded bg-amber-400 shadow-lg ring-2 ring-blue-500" />
         <span className="text-xs opacity-70">tailwind ring / shadow / rotate</span>

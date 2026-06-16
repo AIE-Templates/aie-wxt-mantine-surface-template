@@ -41,7 +41,7 @@ pnpm dev:firefox         # Firefox
 
 ### 환경 설정 및 커스터마이징
 
-1. **네임스페이스 설정:** `src/constants`에 위치한 `PROJECT_PREFIX`를 수정하십시오. 이 값은 `postcss.config.cjs` 및 `global.css` 설정과 반드시 동기화되어야 합니다. 이는 CSS 변수 및 핵심 컨테이너 클래스인 `.aie-surface-root`에 고유한 접두사를 부여하여 호스트 페이지와의 스타일 충돌을 원천적으로 차단합니다.
+1. **네임스페이스 설정:** `PROJECT_PREFIX`의 단일 진실 공급원（single source of truth）은 저장소 루트의 **`prefix.cjs`**에 있습니다. 이 한 줄만 변경하면 `src/constants`, `postcss.config.cjs`, `scripts/audit-css-vars.mjs`가 모두 자동으로 따라갑니다. 수동으로 동기화해야 하는 곳은 `global.css`뿐입니다（CSS는 상수를 import할 수 없음）——그 안의 `.aie-surface-root` 셀렉터와 `--aie-z-*` 변수를 일치하도록 수정하십시오. 이 미러를 잊으면 확실하게 감지됩니다: `pnpm test`가 실패하고 `pnpm dev` / `pnpm build`는 `check-prefix-sync` Vite 플러그인을 통해 경고하거나 빌드를 중단합니다. 이 접두사는 CSS 변수와 핵심 서피스 루트 클래스에 네임스페이스를 부여하여 호스트 페이지와의 스타일 충돌을 차단합니다.
 2. **Manifest 구성:** `wxt.config.ts` 파일의 `manifest` 함수 내에서 `name`과 `permissions`를 조정하십시오. 코드는 Manifest V3(MV3) 표준을 준수하여 작성해야 하며, WXT가 빌드 시 Firefox를 위한 MV2 다운그레이드를 자동 처리합니다.
 3. **확장 프로그램 ID 고정 (선택 사항):** `.env.example`을 `.env` 파일로 복사하고 `WXT_EXTENSION_KEY`를 설정하십시오. 이를 통해 환경 변수를 이용해 Manifest의 `key`를 안전하게 주입할 수 있습니다. 빌드 산출물에는 `WXT_` 또는 `VITE_` 접두사가 포함된 환경 변수만 포함됩니다. 보안을 위해 민감한 정보는 버전 관리 시스템에 커밋되지 않는 `.env`에 보관하십시오.
 4. **UI 인터페이스 추가:** `src/entrypoints/` 디렉터리 하위의 각 진입점(Entry Point)은 `src/react-app/apps/` 내의 특정 React 애플리케이션을 마운트하는 역할을 수행합니다. 새로운 화면을 추가하려면 기존 앱 디렉터리를 복제하고 해당 진입점을 구성하면 됩니다.
@@ -172,7 +172,7 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 
 모든 루트 레벨 CSS 변수는 Shadow 트리 내부의 `.aie-surface-root` 스코프 내에 안전하게 격리되어 있습니다. 이는 외부의 불확실한 `:root` 또는 `:host` 선택자로부터 물리적인 분리를 보장합니다. 디자인 토큰의 스코프 무결성을 감사하기 위해 주기적으로 `pnpm audit:css`를 실행하십시오.
 
-**Z-Index 계층 규약:** 계층 구조는 `src/constants` 및 `global.css` 내에 통합 정의되어 있습니다.
+**Z-Index 계층 규약:** `src/constants`의 `Z_INDEX` 상수로 정의되며 `global.css`에 `--<prefix>-z-*` CSS 변수로 미러링됩니다（`src/constants/index.test.ts`의 테스트가 둘의 동기화를 보장합니다）.
 우선순위: `floatUi < mainUi < modal < popover < notification < max`.
 
 ---
@@ -186,7 +186,7 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 5. **Content 트랙의 단순성 유지:** 호스트 DOM을 직접 수정할 때 Tailwind 클래스나 React 노드를 사용하지 마십시오. 순수 Vanilla DOM API와 전용 접두사가 포함된 CSS 클래스만을 사용해야 합니다.
 6. **인증 로직의 격리:** 보안 자격 증명과 관련된 UI 상호작용은 메인 환경(Main World)과 철저히 격리되어야 합니다.
 7. **플로팅 컴포넌트의 명시적 제약:** 모든 Popover, Tooltip, Menu 컴포넌트는 명시적으로 `zIndex: Z_INDEX.popover` 및 `floatingStrategy: 'fixed'` 속성을 선언해야 합니다.
-8. **네임스페이스 동기화 유지:** `PROJECT_PREFIX` 변수가 `src/constants`, `postcss.config.cjs`, `global.css` 전반에서 완전히 일치하도록 유지하십시오.
+8. **네임스페이스 동기화 유지:** `PROJECT_PREFIX`는 `prefix.cjs`（단일 진실 공급원）에서만 변경하십시오. `src/constants`, `postcss.config.cjs`, CSS 감사는 이로부터 파생됩니다. 수동 미러는 `global.css`뿐이며, `pnpm test` / `pnpm build`가 드리프트를 방지합니다.
 
 ---
 

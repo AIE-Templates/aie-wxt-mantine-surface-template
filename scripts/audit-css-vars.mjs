@@ -1,10 +1,11 @@
 // One-off audit: enumerate EVERY custom-property declaration in the built
 // content.css and classify its selector against the iron law —
-// "all root-level plugin CSS variables are anchored on .aie-surface-root".
+// "all root-level plugin CSS variables are anchored on .<prefix>-surface-root".
 //
 // Usage: node scripts/audit-css-vars.mjs <path-to-content.css>
 import postcss from 'postcss';
 import { readFileSync } from 'node:fs';
+import { PROJECT_PREFIX } from '../prefix.cjs';
 
 const file = process.argv[2];
 const css = readFileSync(file, 'utf8');
@@ -14,7 +15,8 @@ const root = postcss.parse(css);
 // every element — i.e. where a custom property becomes a design token for the
 // whole subtree. These are the ONLY ones the iron law governs.
 const ROOT_TOKENS = [':root', ':host', 'html', 'body', '*'];
-const SURFACE = '.aie-surface-root';
+const SURFACE = `.${PROJECT_PREFIX}-surface-root`;
+const TW_PREFIX = `--${PROJECT_PREFIX}-tw-`;
 
 function atRuleChain(node) {
   const chain = [];
@@ -40,14 +42,14 @@ function selectorIncludesSurface(sel) {
 }
 
 const buckets = {
-  rootCompliant: [], // design tokens on root AND includes .aie-surface-root → GOOD
-  rootViolation: [], // design tokens on root but MISSING .aie-surface-root  → VIOLATION
-  schemeStatic: [], // :root[data-mantine-color-scheme],:host([...]) static defaults — inert in shadow, runtime <style> on .aie-surface-root supplies real values (NOT visible to this static audit)
-  twTransient: [], // `*`-scoped --aie-tw-* per-element fallback (@property-backed, namespaced) — not a design token
+  rootCompliant: [], // design tokens on root AND includes .<prefix>-surface-root → GOOD
+  rootViolation: [], // design tokens on root but MISSING .<prefix>-surface-root  → VIOLATION
+  schemeStatic: [], // :root[data-mantine-color-scheme],:host([...]) static defaults — inert in shadow, runtime <style> on .<prefix>-surface-root supplies real values (NOT visible to this static audit)
+  twTransient: [], // `*`-scoped --<prefix>-tw-* per-element fallback (@property-backed, namespaced) — not a design token
   scoped: new Map(), // component/utility selectors (local scope, out of law)
 };
 
-const onlyTwVars = (props) => props.every((p) => p.startsWith('--aie-tw-'));
+const onlyTwVars = (props) => props.every((p) => p.startsWith(TW_PREFIX));
 const isSchemeBlock = (sel) => /\[data-mantine-color-scheme/.test(sel);
 
 root.walkRules((rule) => {
@@ -67,7 +69,7 @@ root.walkRules((rule) => {
   }
 });
 
-// @property at-rules (global registration; renamed to --aie-tw-* on purpose)
+// @property at-rules (global registration; renamed to --<prefix>-tw-* on purpose)
 let propertyCount = 0;
 const propertyNames = new Set();
 root.walkAtRules('property', (at) => {
@@ -84,14 +86,14 @@ for (const e of buckets.rootViolation) console.log(`  ✗ [${e.chain || 'top'}] 
 console.log(`\n=== Mantine color-scheme STATIC defaults (inert in shadow; real values via runtime <style> on ${SURFACE} — verify at runtime): ${buckets.schemeStatic.length} ===`);
 for (const e of buckets.schemeStatic) console.log(`  ~ "${e.selector.slice(0, 70)}" (${e.count} vars)`);
 
-console.log(`\n=== Tailwind --aie-tw-* per-element transient fallback (@property-backed, namespaced): ${buckets.twTransient.length} rule(s) ===`);
+console.log(`\n=== Tailwind ${TW_PREFIX}* per-element transient fallback (@property-backed, namespaced): ${buckets.twTransient.length} rule(s) ===`);
 for (const e of buckets.twTransient) console.log(`  ~ [${e.chain ? e.chain.slice(0, 40) + '…' : 'top'}] "${e.selector}" (${e.count} vars)`);
 
 console.log(`\n=== @property registrations (global by design): ${propertyCount} ===`);
 const unprefixed = [...propertyNames].filter((n) => n.startsWith('--tw-'));
-const prefixed = [...propertyNames].filter((n) => n.startsWith('--aie-tw-'));
-const otherProp = [...propertyNames].filter((n) => !n.startsWith('--tw-') && !n.startsWith('--aie-tw-'));
-console.log(`  --aie-tw-* (namespaced): ${prefixed.length}`);
+const prefixed = [...propertyNames].filter((n) => n.startsWith(TW_PREFIX));
+const otherProp = [...propertyNames].filter((n) => !n.startsWith('--tw-') && !n.startsWith(TW_PREFIX));
+console.log(`  ${TW_PREFIX}* (namespaced): ${prefixed.length}`);
 console.log(`  --tw-* (UNNAMESPACED — would collide!): ${unprefixed.length}${unprefixed.length ? ' → ' + unprefixed.join(', ') : ''}`);
 console.log(`  other: ${otherProp.length}${otherProp.length ? ' → ' + otherProp.slice(0, 10).join(', ') : ''}`);
 
@@ -105,5 +107,5 @@ console.log(`  suspicious root-ish scoped selectors: ${suspicious.length}${suspi
 
 console.log(`\n=== VERDICT ===`);
 const ok = buckets.rootViolation.length === 0 && unprefixed.length === 0;
-console.log(ok ? '✅ Iron law holds: every root-level var rule includes .aie-surface-root; all @property registrations namespaced.' : '❌ Violations found above.');
+console.log(ok ? `✅ Iron law holds: every root-level var rule includes ${SURFACE}; all @property registrations namespaced.` : '❌ Violations found above.');
 process.exit(ok ? 0 : 1);

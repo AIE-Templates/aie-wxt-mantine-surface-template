@@ -41,7 +41,7 @@ pnpm dev:firefox         # Firefox
 
 ### 个性化配置
 
-1. **设定命名空间：** 修改 `src/constants` 中的 `PROJECT_PREFIX` 变量。请务必确保该前缀与 `postcss.config.cjs` 及 `global.css` 中的配置保持一致。此操作将为 CSS 变量及核心容器类 `.aie-surface-root` 添加统一前缀，从根本上杜绝与宿主页面的样式冲突。
+1. **设定命名空间：** `PROJECT_PREFIX` 的唯一真实来源（single source of truth）位于仓库根目录的 **`prefix.cjs`**。只需修改这一行，`src/constants`、`postcss.config.cjs` 及 `scripts/audit-css-vars.mjs` 都会自动跟随。唯一需要手动同步的是 `global.css`（CSS 无法 import 该常量）——请同步修改其中的 `.aie-surface-root` 选择器与 `--aie-z-*` 变量。若遗漏该镜像会被响亮拦下：`pnpm test` 会失败，`pnpm dev` / `pnpm build` 会通过 `check-prefix-sync` Vite 插件发出警告或直接构建失败。此前缀为 CSS 变量及核心容器类添加命名空间，从根本上杜绝与宿主页面的样式冲突。
 2. **配置 Manifest：** 在 `wxt.config.ts` 的 `manifest` 函数中调整 `name` 与 `permissions`。请遵循 Manifest V3（MV3）标准编写，WXT 会在构建时自动处理针对 Firefox 的降级转换。
 3. **固定扩展 ID（可选）：** 复制 `.env.example` 为 `.env` 文件，并设定 `WXT_EXTENSION_KEY`。此举可通过环境变量安全注入 Manifest 的 `key`，避免硬编码。仅以 `WXT_` 或 `VITE_` 开头的环境变量会被打包入构建产物。请始终将敏感信息留存于 `.env` 中，切勿提交至版本库。
 4. **添加 UI 界面：** `src/entrypoints/` 目录下的每个入口文件均负责挂载 `src/react-app/apps/` 中的一个 React 应用。若需新增界面，只需复制现有应用目录并配置对应的入口文件即可。
@@ -172,7 +172,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 所有根级别的 CSS 变量均被安全地封锁于 Shadow 树内部的 `.aie-surface-root` 作用域下，从而从物理层面隔绝了外部充满不确定性的 `:root` 与 `:host` 选择器。建议定期执行 `pnpm audit:css` 以审计设计令牌（Design Tokens）的作用域安全性。
 
-**Z-Index 层级规范：** 统一定义于 `src/constants` 与 `global.css` 中。
+**Z-Index 层级规范：** 以 `Z_INDEX` 常量定义于 `src/constants`，并在 `global.css` 中镜像为 `--<prefix>-z-*` CSS 变量（`src/constants/index.test.ts` 中的测试确保二者同步）。
 层级秩序为：`floatUi < mainUi < modal < popover < notification < max`。
 
 ---
@@ -186,7 +186,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 5. **精简 Content 轨道逻辑：** 严禁使用 Tailwind 类名或 React 节点执行粗暴的宿主 DOM 篡改。请坚持使用 Vanilla DOM API 配合包含专属前缀的 CSS 类名。
 6. **鉴权逻辑隔离：** 涉及安全凭证流转的 UI 交互必须彻底与 Main World 隔离。
 7. **严格约束浮动组件：** 所有的 Popover、Tooltip 及 Menu 组件必须显式声明 `zIndex: Z_INDEX.popover` 与 `floatingStrategy: 'fixed'`。
-8. **捍卫命名空间：** 务必确保 `PROJECT_PREFIX` 在 `src/constants`、`postcss.config.cjs` 及 `global.css` 中的声明绝对一致。
+8. **捍卫命名空间：** 仅在 `prefix.cjs`（唯一真实来源）中修改 `PROJECT_PREFIX`；`src/constants`、`postcss.config.cjs` 及 CSS 审计脚本均派生自它。唯有 `global.css` 是手动镜像——且 `pnpm test` / `pnpm build` 会守卫其不漂移。
 
 ---
 
