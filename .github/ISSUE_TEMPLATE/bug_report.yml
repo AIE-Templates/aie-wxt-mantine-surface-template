@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in the template does not work as documented
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. Please fill in the sections below so the issue can be reproduced quickly.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps. A link to a repo generated from this template is ideal.
+      placeholder: |
+        1. Use this template / pnpm install
+        2. pnpm dev
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Affected surface
+      description: Which surface(s)? popup / side panel / options / tab / injected shadow DOM.
+      placeholder: injected shadow DOM
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Run `pnpm --version`, `node --version`, and note your browser + OS.
+      placeholder: |
+        - OS: macOS 15.5
+        - Browser: Chrome 126
+        - node: 22.x / pnpm: 9.x
+        - template version: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: Console errors, build output, or `pnpm audit:css` / `pnpm audit:ascii` failures.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reproduced this on a fresh repo generated from the template (not a heavily modified fork).

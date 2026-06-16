@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an addition or improvement to the template
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a foundational template, not an exhaustive framework — application-specific logic (auth, HTTP/SSE clients, complex build setups) is intentionally out of scope. Proposals that keep the core small and broadly useful are the most likely to land.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the limitation or friction you hit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like the template to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why they fall short.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This belongs in the core template, not in application-specific code a consumer would add themselves.
+          required: true
