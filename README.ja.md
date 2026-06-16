@@ -2,11 +2,26 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | **日本語** | [한국어](./README.ko.md)
 
+[![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
 ブラウザ拡張機能のユーザーインターフェースを構築するための、本番環境を見据えた堅牢なボイラープレートです。一度記述したUIは、ポップアップ、サイドパネル、オプションページ、独立したタブ、さらにはホストページに注入されるShadow DOM環境において、一貫して完璧に動作します。
 
 本テンプレートは完全なCSSの分離を保証します。拡張機能のスタイル設定がホストページに影響を与えることはなく、またホストページのCSSが拡張機能に干渉することもありません。
 
 **技術スタック:** WXT 0.20、`@webext-core` (メッセージングおよびプロキシサービス)、Mantine 9.3 (ネイティブCSS変数のみを使用し、Emotionには非依存)、Tailwind 4 (厳密な名前空間による分離)、および CSS Modules。
+
+## このテンプレートを選ぶ理由
+
+- **UIは一度だけ記述し、どこにでもマウント** —— 単一のコンポーネントツリーが、ポップアップ、サイドパネル、オプションページ、独立タブ、あるいは任意のWebページへの注入として動作します。
+- **期待ではなく、本物のShadow DOM分離** —— 既知のスタイル貫通の経路はすべて処理され、`pnpm audit:css` によって固定されます。
+- **Chromeが実際に読み込めるビルド** —— Vite 8 / rolldown パス向けのASCII出力プラグイン。`pnpm audit:ascii` で保護されます (wxt#353)。
+- **ネイティブCSS変数で動くMantine v9** —— Emotionランタイムなし。カラースキーム、テキスト方向、プライマリカラーがすべてのサーフェス間で同期します。
+- **型付き・テスト済み・ドキュメント完備** —— TypeScript、vitestユニットテスト、多言語ドキュメントを最初から同梱。
 
 > [!NOTE]
 > 本プロジェクトは、包括的なフレームワークではなく、拡張機能開発の基盤となるテンプレートです。`src/` 以下のコードは、拡張機能開発において複雑になりがちな環境分離や通信の基盤（プラミング）の解決に特化しています。認証フロー、HTTP/SSEクライアント、複雑なビルド環境といったアプリケーション固有のロジックは意図的に排除されています。これらの実装方針については、[デザインパターン](#6-デザインパターン-任意) のセクションをご参照ください。

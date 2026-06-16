@@ -2,11 +2,26 @@
 
 **English** | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
+[![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
 A production-ready boilerplate for building browser extension user interfaces. Write your UI once and deploy it consistently across popups, side panels, options pages, standalone tabs, and injected shadow DOM environments.
 
 It guarantees comprehensive CSS isolation: your extension styles will not affect the host page, and the host page's CSS will not interfere with your extension.
 
 **Technology Stack:** WXT 0.20, `@webext-core` (messaging and proxy-service), Mantine 9.3 (native CSS variables, no Emotion dependency), Tailwind 4 (strictly namespaced), and CSS Modules.
+
+## Why this template?
+
+- **Write the UI once, mount it anywhere** — one component tree renders in the popup, side panel, options page, a standalone tab, or injected into any web page.
+- **Real shadow-DOM isolation, not hope** — the known style-penetration vectors are handled and locked down by `pnpm audit:css`.
+- **Builds Chrome will actually load** — an ASCII-output plugin for the Vite 8 / rolldown path, guarded by `pnpm audit:ascii` (wxt#353).
+- **Mantine v9 on native CSS variables** — no Emotion runtime; color scheme, direction, and primary color stay in sync across every surface.
+- **Typed, tested, documented** — TypeScript, vitest unit tests, and multilingual docs out of the box.
 
 > [!NOTE]
 > This is a foundational template rather than an exhaustive framework. The code within `src/` addresses the intricate plumbing inherent to browser extension development. Application-specific logic—such as authentication flows, HTTP/SSE clients, and complex build environments—is deliberately omitted. Please refer to the [Patterns](#6-patterns-optional) section for guidance on these implementations.

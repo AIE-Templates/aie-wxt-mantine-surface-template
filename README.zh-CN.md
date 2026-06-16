@@ -2,11 +2,26 @@
 
 [English](./README.md) | **简体中文** | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
+[![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
 一款适用于构建浏览器扩展用户界面的工业级、生产就绪型脚手架。实现“一次编写，多端运行”，确保代码在弹出窗口（Popup）、侧边栏（Side Panel）、选项页（Options）、独立标签页以及注入宿主页面的 Shadow DOM 中保持高度一致的渲染表现与交互逻辑。
 
 本模板提供绝对的 CSS 隔离保障：扩展样式不会污染宿主页面，同时宿主页面的全局样式也无法干扰扩展的正常显示。
 
 **技术栈：** WXT 0.20、`@webext-core`（消息通信与 RPC 服务）、Mantine 9.3（原生 CSS 变量，完全移除 Emotion 依赖）、Tailwind 4（严格的命名空间隔离）以及 CSS Modules。
+
+## 为什么选择这个模板？
+
+- **UI 只写一次，随处挂载** —— 同一套组件树即可渲染到弹出窗口、侧边栏、选项页、独立标签页，或注入任意网页。
+- **真正的 shadow-DOM 隔离，而非奢望** —— 已知的样式穿透向量全部处理到位，并由 `pnpm audit:css` 守护锁定。
+- **Chrome 真的能加载的构建产物** —— 为 Vite 8 / rolldown 路径提供 ASCII 输出插件，由 `pnpm audit:ascii` 守护（wxt#353）。
+- **基于原生 CSS 变量的 Mantine v9** —— 无 Emotion 运行时；配色方案、文字方向、主色在所有 surface 间自动同步。
+- **类型完备、测试齐全、文档完善** —— 开箱即带 TypeScript、vitest 单元测试与多语言文档。
 
 > [!NOTE]
 > 本项目定位为底层基础模板，而非臃肿的业务框架。`src/` 目录下的核心代码旨在解决扩展开发中最棘手的环境隔离与通信问题。至于鉴权流程、HTTP/SSE 客户端以及复杂的多环境构建等业务逻辑，均被有意剥离。如需了解相关业务代码的最佳实践，请参阅 [设计模式](#6-进阶设计模式可选) 章节。

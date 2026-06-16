@@ -2,11 +2,26 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | **한국어**
 
+[![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
 브라우저 확장 프로그램 사용자 인터페이스 구축을 위한 프로덕션 레벨의 견고한 보일러플레이트입니다. 단일 코드베이스로 작성된 UI는 팝업, 사이드 패널, 옵션 페이지, 독립 탭, 그리고 호스트 페이지에 주입되는 Shadow DOM 환경에 이르기까지 일관되고 완벽하게 렌더링됩니다.
 
 본 템플릿은 완벽한 CSS 격리 환경을 보장합니다. 확장 프로그램의 스타일이 호스트 페이지에 영향을 미치지 않으며, 반대로 호스트 페이지의 전역 CSS가 확장 프로그램의 렌더링을 방해하지 않습니다.
 
 **기술 스택:** WXT 0.20, `@webext-core` (메시징 및 RPC 서비스), Mantine 9.3 (네이티브 CSS 변수 기반, Emotion 의존성 완전 제거), Tailwind 4 (엄격한 네임스페이스 격리), 그리고 CSS Modules.
+
+## 이 템플릿을 선택해야 하는 이유
+
+- **UI는 한 번만 작성하고, 어디에나 마운트** —— 단일 컴포넌트 트리가 팝업, 사이드 패널, 옵션 페이지, 독립 탭, 또는 임의의 웹 페이지 주입으로 렌더링됩니다.
+- **희망이 아닌, 진짜 shadow-DOM 격리** —— 알려진 스타일 침투 경로를 모두 처리하고 `pnpm audit:css`로 잠급니다.
+- **Chrome가 실제로 로드하는 빌드 산출물** —— Vite 8 / rolldown 경로를 위한 ASCII 출력 플러그인, `pnpm audit:ascii`로 보호됩니다 (wxt#353).
+- **네이티브 CSS 변수 기반 Mantine v9** —— Emotion 런타임 없음. 색상 스킴, 텍스트 방향, 기본 색상이 모든 surface 간에 동기화됩니다.
+- **타입 완비, 테스트 완료, 문서화 완비** —— TypeScript, vitest 단위 테스트, 다국어 문서를 기본 제공.
 
 > [!NOTE]
 > 본 프로젝트는 비대한 프레임워크가 아닌, 확장 프로그램 개발의 기반이 되는 코어 템플릿입니다. `src/` 디렉터리의 핵심 코드는 환경 격리와 통신 등 확장 프로그램 개발에서 가장 까다로운 기반 작업(Plumbing)을 해결하는 데 집중합니다. 인증 플로우, HTTP/SSE 클라이언트, 복잡한 다중 환경 빌드 등 애플리케이션 고유의 비즈니스 로직은 의도적으로 제외되었습니다. 이러한 구현에 대한 권장 사항은 [디자인 패턴](#6-고급-디자인-패턴-선택-사항) 섹션을 참고하시기 바랍니다.
