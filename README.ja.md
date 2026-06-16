@@ -175,6 +175,10 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 **Z-Index 階層:** `src/constants` の `Z_INDEX` 定数として定義され、`global.css` に `--<prefix>-z-*` CSS変数としてミラーリングされます（`src/constants/index.test.ts` のテストが両者の同期を保証します）。
 階層の順序: `floatUi < mainUi < modal < popover < notification < max`。
 
+### 厳格な CSP との互換性
+
+ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——WXT が注入する `<style>`、Mantine のテーマ変数、satellites の `adoptedStyleSheets`——そのためホストの `style-src`/`script-src` は届きません。ホストを変更する唯一の例外（Mantine がカラースキーム切替時にページの `<head>` に注入する遷移用 `<style>`）は `keepTransitions: true` で無効化済みです。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
+
 ---
 
 ## 5. アーキテクチャの原則 (Hard Rules)

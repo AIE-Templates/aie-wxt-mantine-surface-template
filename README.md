@@ -175,6 +175,10 @@ All root-level CSS variables are securely scoped within `.aie-surface-root` insi
 **Z-index Hierarchy:** Defined as the `Z_INDEX` constant in `src/constants` and mirrored as `--<prefix>-z-*` CSS variables in `global.css` (a test in `src/constants/index.test.ts` keeps the two in sync).
 Order: `floatUi < mainUi < modal < popover < notification < max`.
 
+### Strict-CSP Compatibility
+
+The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — WXT's injected `<style>`, Mantine's theme variables, and satellites' `adoptedStyleSheets` — so the host's `style-src`/`script-src` never reach it. The one host-mutating exception (Mantine's color-scheme transition `<style>` injected into the page `<head>`) is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
+
 ---
 
 ## 5. Architectural Guidelines

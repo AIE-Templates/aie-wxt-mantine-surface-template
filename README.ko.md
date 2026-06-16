@@ -175,6 +175,10 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 **Z-Index 계층 규약:** `src/constants`의 `Z_INDEX` 상수로 정의되며 `global.css`에 `--<prefix>-z-*` CSS 변수로 미러링됩니다（`src/constants/index.test.ts`의 테스트가 둘의 동기화를 보장합니다）.
 우선순위: `floatUi < mainUi < modal < popover < notification < max`.
 
+### 엄격한 CSP 호환성
+
+호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——WXT가 주입하는 `<style>`, Mantine의 테마 변수, satellites의 `adoptedStyleSheets`——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트를 변경하는 유일한 예외(Mantine이 색상 구성표 전환 시 페이지 `<head>`에 주입하는 전환용 `<style>`)는 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
+
 ---
 
 ## 5. 아키텍처 핵심 원칙 (Hard Rules)

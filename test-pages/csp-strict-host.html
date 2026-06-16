@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <!-- Phase-0 hostile host page: STRICT CSP.
+       Purpose: prove the extension renders fully when the host page forbids ALL
+       inline script/style. The shadow-DOM surface, Mantine theme vars, satellites
+       and color-scheme toggle must all still work.
+
+       The CSP below has NO 'unsafe-inline' anywhere, and 'style-src-attr none'.
+       That means THIS PAGE's own inline <script>/<style>/onclick would be blocked
+       too — so the page's own test harness (hotkey log, remove button, host
+       styling) is externalized into same-origin files that 'self' allows. The
+       only thing under test is the EXTENSION, which is exempt from the page CSP
+       because content scripts run in an isolated world and inject into a shadow
+       root (host style-src / script-src do not reach there).
+
+       What to verify after `pnpm build` + loading the unpacked extension here:
+       1. surface    — the fixed panel renders with full Mantine styling (not unstyled)
+       2. satellites — spawn against the paragraphs; shared sheets apply; popover floats
+       3. modal      — "host modal" opens themed, on top, without touching the page
+       4. scheme     — toggling light/dark restyles the surface and does NOT inject
+                       a transition <style> into the host <head> (keepTransitions)
+       5. inline css — Mantine's inline style attributes still apply inside the
+                       shadow tree despite style-src-attr 'none' (content-script
+                       exemption + shadow isolation)
+       6. hotkeys    — typing inside the surface must NOT reach the page keydown log -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'"
+    />
+    <title>Strict-CSP hostile host page</title>
+    <link rel="stylesheet" href="./csp-strict-host.css" />
+  </head>
+  <body>
+    <h1>Strict-CSP host page</h1>
+    <p class="note">
+      CSP: <code>default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'none'</code> — no
+      <code>unsafe-inline</code>. This page's own script/style are external (same-origin) because its CSP would block
+      inline ones. The extension is exempt and should render fully.
+    </p>
+
+    <div id="hotkey-log" class="log">hotkey log: (none)</div>
+
+    <p>Paragraph one — satellite anchor target.</p>
+    <p>Paragraph two — satellite anchor target.</p>
+    <p id="removable">Paragraph three — click the button below to remove me and test satellite lifecycle custody.</p>
+    <button id="remove-btn" type="button">remove paragraph three</button>
+
+    <!-- External, same-origin: allowed by script-src 'self'. Inline would be blocked. -->
+    <script src="./csp-strict-host.js"></script>
+  </body>
+</html>

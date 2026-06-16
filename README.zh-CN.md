@@ -175,6 +175,10 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 **Z-Index 层级规范：** 以 `Z_INDEX` 常量定义于 `src/constants`，并在 `global.css` 中镜像为 `--<prefix>-z-*` CSS 变量（`src/constants/index.test.ts` 中的测试确保二者同步）。
 层级秩序为：`floatUi < mainUi < modal < popover < notification < max`。
 
+### 严格 CSP 兼容性
+
+即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——WXT 注入的 `<style>`、Mantine 的主题变量、satellites 的 `adoptedStyleSheets`——宿主的 `style-src`/`script-src` 触及不到。唯一会改动宿主的例外（Mantine 切换配色方案时向页面 `<head>` 注入的过渡 `<style>`）已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
+
 ---
 
 ## 5. 架构红线准则
