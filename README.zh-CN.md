@@ -45,6 +45,7 @@ pnpm dev:firefox         # Firefox
 2. **配置 Manifest：** 在 `wxt.config.ts` 的 `manifest` 函数中调整 `name` 与 `permissions`。请遵循 Manifest V3（MV3）标准编写，WXT 会在构建时自动处理针对 Firefox 的降级转换。
 3. **固定扩展 ID（可选）：** 复制 `.env.example` 为 `.env` 文件，并设定 `WXT_EXTENSION_KEY`。此举可通过环境变量安全注入 Manifest 的 `key`，避免硬编码。仅以 `WXT_` 或 `VITE_` 开头的环境变量会被打包入构建产物。请始终将敏感信息留存于 `.env` 中，切勿提交至版本库。
 4. **添加 UI 界面：** `src/entrypoints/` 目录下的每个入口文件均负责挂载 `src/react-app/apps/` 中的一个 React 应用。若需新增界面，只需复制现有应用目录并配置对应的入口文件即可。
+5. **收窄 Content Script 作用域：** 演示用 content script 会匹配所有 `http`/`https` 页面（见 `src/entrypoints/content/index.tsx` 的 `matches`），而 content script 无法代码分割，因此每个页面都会被注入完整的 Mantine + React 产物（约 550 kB JS + 260 kB CSS）。作为演示没有问题；实际产品应将 `matches` 收窄到真正的目标站点，或保持宽匹配但延迟挂载（用户操作时再动态 import UI）。过宽的宿主权限也会在应用商店审核中招致额外审查。
 
 ### 构建与发布
 
@@ -53,6 +54,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest：测试生命周期、存储以及纯逻辑断言（基于 happy-dom 与 fake-browser）
 pnpm audit:css           # 验证 CSS 变量的作用域安全性（建议在升级 Tailwind 或 Mantine 后执行）
 pnpm audit:ascii         # 确保构建产物为纯 ASCII 字符（绕过 Chrome 在加载扩展时因 CJK/UTF-8 字符导致的解析错误）
+                         # 两个审计均提供 `:firefox` 变体，用于检查 `pnpm build:firefox` 的产物
+
 pnpm zip                 # 打包生成适用于 Chrome Web Store 的 zip 压缩包（`pnpm zip:firefox` 适用于 AMO）
 ```
 

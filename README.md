@@ -45,6 +45,7 @@ pnpm dev:firefox         # Firefox
 2. **Define the Manifest:** Adjust the `name` and `permissions` within the `manifest` function in `wxt.config.ts`. Target Manifest V3 (MV3); WXT automatically manages the down-conversion for Firefox.
 3. **Pin the Extension ID (Optional):** Copy `.env.example` to `.env` and set the `WXT_EXTENSION_KEY`. This securely injects your manifest `key` via environment variables. Only variables prefixed with `WXT_` or `VITE_` are included in the build output. Always maintain secrets in `.env`, not in committed configuration files.
 4. **Add UI Surfaces:** Every entry point under `src/entrypoints/` mounts a React application from `src/react-app/apps/`. To introduce a new surface, duplicate an existing app directory and configure the corresponding entry point.
+5. **Scope the Content Script:** The demo content script matches every `http`/`https` page (`matches` in `src/entrypoints/content/index.tsx`) and — since content scripts cannot be code-split — ships the full Mantine + React bundle (~550 kB JS + ~260 kB CSS) into each of them. Fine for a demo; for a real product, narrow `matches` to the sites you actually target, or keep the broad match but defer mounting (dynamic-import the UI on user action). Broad host access also draws extra scrutiny in store review.
 
 ### Build & Deploy
 
@@ -53,6 +54,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: evaluates lifecycle, storage, and logic invariants (happy-dom + fake-browser)
 pnpm audit:css           # Validates CSS variable scoping (recommended after updating Tailwind/Mantine)
 pnpm audit:ascii         # Asserts build artifacts are pure ASCII (prevents Chrome CJK/UTF-8 load-time rejections)
+                         # Both audits have `:firefox` variants that check the `pnpm build:firefox` output instead
+
 pnpm zip                 # Packages a zip archive for the Chrome Web Store (`pnpm zip:firefox` for AMO)
 ```
 

@@ -45,6 +45,7 @@ pnpm dev:firefox         # Firefox
 2. **Manifest の構成:** `wxt.config.ts` 内の `manifest` 関数にて `name` と `permissions` を調整してください。実装は Manifest V3 (MV3) に準拠して行います。Firefox向けのMV2へのダウングレードは、ビルド時にWXTが自動的に処理します。
 3. **拡張機能IDの固定 (任意):** `.env.example` を `.env` にコピーし、`WXT_EXTENSION_KEY` を設定します。これにより、環境変数を通じてマニフェストの `key` が安全に注入されます。ビルド出力に組み込まれるのは `WXT_` または `VITE_` で始まる環境変数のみです。機密情報はバージョン管理対象外の `.env` で厳重に管理してください。
 4. **UIの追加:** `src/entrypoints/` 配下の各エントリーポイントは、`src/react-app/apps/` にあるReactアプリケーションをマウントする役割のみを担います。新しい画面を追加する場合は、既存のアプリディレクトリを複製し、対応するエントリーポイントを設定してください。
+5. **コンテンツスクリプトのスコープ制限:** デモ用のコンテンツスクリプトはすべての `http`/`https` ページにマッチし（`src/entrypoints/content/index.tsx` の `matches`）、コンテンツスクリプトはコード分割できないため、各ページに Mantine + React のフルバンドル（約 550 kB の JS + 260 kB の CSS）が注入されます。デモとしては問題ありませんが、実際の製品では `matches` を対象サイトに絞り込むか、広いマッチのままマウントを遅延させてください（ユーザー操作時に動的 import する）。広範なホスト権限はストア審査でも追加の精査対象になります。
 
 ### ビルドとデプロイ
 
@@ -53,6 +54,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: ライフサイクル、ストレージ、および純粋なロジックの不変条件をテストします (happy-dom + fake-browser)
 pnpm audit:css           # CSS変数のスコープの安全性を検証します (TailwindやMantineの更新後の実行を推奨)
 pnpm audit:ascii         # ビルドされた成果物が純粋なASCII文字列であることを保証します (Chrome拡張機能読み込み時のCJK/UTF-8起因のエラーを回避)
+                         # 両監査には `:firefox` バリアントがあり、`pnpm build:firefox` の出力を検査します
+
 pnpm zip                 # Chrome Web Store 向けの zip アーカイブを生成します (AMO向けは `pnpm zip:firefox` を使用)
 ```
 
