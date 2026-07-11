@@ -31,10 +31,6 @@ export const SATELLITE_TAG = `${PROJECT_PREFIX}-satellite`;
 export const SURFACE_ROOT_CLASS = `${PROJECT_PREFIX}-surface-root`;
 
 /**
- * Layered z-index plan for in-page UI, deliberately just below int32 max.
- * Mirrored as CSS variables in react-app/styles/global.css.
- */
-/**
  * Layered z-index plan for in-page UI. Mirrored as CSS variables in
  * react-app/styles/global.css — keep both in sync.
  *

@@ -63,7 +63,7 @@ export interface CreateSatelliteOptions {
    * Pointer events are NOT isolated by default (satellites are inline, and most
    * host hotkey clashes are keyboard); pass an explicit array to add them.
    */
-  isolateEvents?: boolean | string[];
+  isolateEvents?: boolean | readonly string[];
 }
 
 interface SatelliteRecord {
@@ -111,6 +111,7 @@ class SatelliteRegistry {
   private observer: MutationObserver | null = null;
   private checkScheduled = false;
   private useConstructableSheets = supportsConstructableSheets;
+  private refreshToken = 0;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -147,6 +148,13 @@ class SatelliteRegistry {
     const source = this.styleSource;
     if (!source) return;
 
+    // Concurrency guard: the <link> inlining below awaits, so two overlapping
+    // refreshes (e.g. rapid theme flips in dev) could otherwise finish out of
+    // order and let stale CSS clobber the newer capture. Only the latest call
+    // is allowed to commit. (Production builds inline all CSS as <style>, so
+    // the loop never awaits there and this token never trips.)
+    const token = ++this.refreshToken;
+
     const cssTexts: string[] = [];
     source.querySelectorAll('style').forEach((styleEl) => {
       if (styleEl.textContent) cssTexts.push(styleEl.textContent);
@@ -163,6 +171,7 @@ class SatelliteRegistry {
         console.warn('[surface/satellite] failed to inline stylesheet link (host CSP?)', error);
       }
     }
+    if (token !== this.refreshToken) return; // superseded by a newer refresh
 
     this.cssTexts = cssTexts;
     if (this.useConstructableSheets) {

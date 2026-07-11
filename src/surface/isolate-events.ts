@@ -10,13 +10,13 @@
 // Default events isolated at each satellite's shadow boundary — identical to
 // @webext-core/isolated-element's default (the one WXT uses for the host
 // surface), so satellite UI never trips host-page keyboard shortcuts.
-export const DEFAULT_ISOLATED_EVENTS = ['keydown', 'keyup', 'keypress'];
+export const DEFAULT_ISOLATED_EVENTS = ['keydown', 'keyup', 'keypress'] as const;
 
 /**
  * `false` → no isolation; an array → exactly those event types; `true` or
  * `undefined` → the keyboard default.
  */
-export function resolveIsolatedEvents(opt: boolean | string[] | undefined): string[] {
+export function resolveIsolatedEvents(opt: boolean | readonly string[] | undefined): readonly string[] {
   if (opt === false) return [];
   if (Array.isArray(opt)) return opt;
   return DEFAULT_ISOLATED_EVENTS; // true | undefined

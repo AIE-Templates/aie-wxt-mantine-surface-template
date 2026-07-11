@@ -60,16 +60,19 @@ function SatelliteBadge({ index }: { index: number }) {
 export default function ContentApp() {
   const satellitesRef = useRef<SatelliteHandle[]>([]);
 
+  const destroySatellites = () => {
+    satellitesRef.current.forEach((satellite) => satellite.destroy());
+    satellitesRef.current = [];
+  };
+
+  // Idempotent on purpose: re-clicking respawns instead of stacking a second
+  // satellite on every anchor (this button doubles as a manual-test fixture).
   const spawnSatellites = () => {
+    destroySatellites();
     const anchors = Array.from(document.querySelectorAll('p, h1, h2')).slice(0, 3);
     anchors.forEach((anchor, index) => {
       satellitesRef.current.push(createSatellite(anchor, <SatelliteBadge index={index} />));
     });
-  };
-
-  const destroySatellites = () => {
-    satellitesRef.current.forEach((satellite) => satellite.destroy());
-    satellitesRef.current = [];
   };
 
   // Panel stacking reads the z-index straight from Z_INDEX — the single source of
