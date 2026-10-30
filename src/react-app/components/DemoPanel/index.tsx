@@ -28,7 +28,7 @@ import {
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { sendMessage } from '@/core/messaging';
-import { getEchoService } from '@/core/rpc/echo';
+import { getEchoService } from '@/core/rpc/echo/contract';
 import { useExtStorage } from '@/react-app/hooks/useExtStorage';
 import { useVisual } from '@/react-app/managers/VisualManager/context';
 import type { VisualColorScheme } from '@/react-app/managers/VisualManager/defs';

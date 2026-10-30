@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState, type PropsWithChildren } from 'react';
-import { useComputedColorScheme, useDirection, useMantineColorScheme } from '@mantine/core';
+import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import MantineRegistry from './components/MantineRegistry';
 import VisualContextProvider from './context';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from './defs';
@@ -40,25 +40,9 @@ function VisualStateBridge({ children, ...props }: VisualStateBridgeProps) {
   // custom implementation.)
   const { setColorScheme: mantineSetColorScheme } = useMantineColorScheme({ keepTransitions: true });
   const activeColorScheme = useComputedColorScheme('light');
-  const { dir, setDirection: mantineSetDirection } = useDirection();
-
-  // Direction changed from another surface (storage watch) → sync Mantine.
-  useEffect(() => {
-    if (dir !== props.direction) mantineSetDirection(props.direction);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.direction]);
-
   const setColorScheme = (colorScheme: VisualColorScheme) => {
     props.onColorSchemeChange(colorScheme);
     mantineSetColorScheme(colorScheme); // → colorSchemeManager.set → storage
-  };
-
-  const setDirection = (direction: VisualDirection) => {
-    props.onDirectionChange(direction);
-    visualDirectionStorage.setValue(direction).catch((error) => {
-      console.warn('[VisualManager] failed to persist direction', error);
-    });
-    mantineSetDirection(direction);
   };
 
   return (
@@ -69,8 +53,8 @@ function VisualStateBridge({ children, ...props }: VisualStateBridgeProps) {
       primaryColor={props.primaryColor}
       setColorScheme={setColorScheme}
       toggleColorScheme={() => setColorScheme(activeColorScheme === 'light' ? 'dark' : 'light')}
-      setDirection={setDirection}
-      toggleDirection={() => setDirection(dir === 'ltr' ? 'rtl' : 'ltr')}
+      setDirection={props.onDirectionChange}
+      toggleDirection={() => props.onDirectionChange(props.direction === 'ltr' ? 'rtl' : 'ltr')}
       setPrimaryColor={(primaryColor) => {
         props.onPrimaryColorChange(primaryColor);
         visualPrimaryColorStorage.setValue(primaryColor).catch((error) => {
@@ -101,14 +85,26 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
     return () => unwatchers.forEach((unwatch) => unwatch());
   }, []);
 
+  const setDirection = (direction: VisualDirection) => {
+    setState((s) => ({ ...s, direction }));
+    visualDirectionStorage.setValue(direction).catch((error) => {
+      console.warn('[VisualManager] failed to persist direction', error);
+    });
+  };
+
   return (
-    <MantineRegistry colorScheme={state.colorScheme} direction={state.direction} primaryColor={state.primaryColor}>
+    <MantineRegistry
+      colorScheme={state.colorScheme}
+      direction={state.direction}
+      primaryColor={state.primaryColor}
+      onDirectionChange={setDirection}
+    >
       <VisualStateBridge
         colorScheme={state.colorScheme}
         direction={state.direction}
         primaryColor={state.primaryColor}
         onColorSchemeChange={(colorScheme) => setState((s) => ({ ...s, colorScheme }))}
-        onDirectionChange={(direction) => setState((s) => ({ ...s, direction }))}
+        onDirectionChange={setDirection}
         onPrimaryColorChange={(primaryColor) => setState((s) => ({ ...s, primaryColor }))}
       >
         {children}

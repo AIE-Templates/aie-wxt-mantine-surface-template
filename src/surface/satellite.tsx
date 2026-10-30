@@ -31,7 +31,7 @@
  */
 
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
+import { useComputedColorScheme, useDirection, useMantineTheme } from '@mantine/core';
 import { createPortal } from 'react-dom';
 import { SATELLITE_TAG, SURFACE_ROOT_CLASS } from '@/constants';
 import { useSurface } from './context';
@@ -334,6 +334,7 @@ export function SatelliteOutlet() {
   const records = useSyncExternalStore(satellites.subscribe, satellites.getSnapshot);
   const computedColorScheme = useComputedColorScheme('light');
   const theme = useMantineTheme();
+  const { dir } = useDirection();
 
   useEffect(() => {
     if (env.kind === 'shadow' && env.shadowRoot) satellites.setStyleSource(env.shadowRoot);
@@ -349,8 +350,9 @@ export function SatelliteOutlet() {
   useEffect(() => {
     records.forEach((record) => {
       record.rootElement.setAttribute('data-mantine-color-scheme', computedColorScheme);
+      record.rootElement.setAttribute('dir', dir);
     });
-  }, [records, computedColorScheme]);
+  }, [records, computedColorScheme, dir]);
 
   return <>{records.map((record) => createPortal(record.node, record.rootElement, record.id))}</>;
 }

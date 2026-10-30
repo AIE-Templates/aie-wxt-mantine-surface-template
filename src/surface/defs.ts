@@ -10,6 +10,14 @@
 
 export type SurfaceKind = 'document' | 'shadow';
 
+export type SurfaceColorScheme = 'light' | 'dark';
+
+/** Stable external-store functions; subscribe returns its resource cleanup. */
+export interface ColorSchemeSource {
+  getSnapshot: () => SurfaceColorScheme;
+  subscribe: (listener: () => void) => () => void;
+}
+
 /**
  * How the surface resolves its color scheme.
  *
@@ -17,8 +25,9 @@ export type SurfaceKind = 'document' | 'shadow';
  *                  live across every surface). The default everywhere.
  * - `force-light` / `force-dark` — pin the scheme. Escape hatch for in-page
  *   UI that must not depend on the user's extension-wide preference.
+ * - A ColorSchemeSource supplies a live resolved scheme for this surface only.
  */
-export type ColorSchemeStrategy = 'extension' | 'force-light' | 'force-dark';
+export type ColorSchemeStrategy = 'extension' | 'force-light' | 'force-dark' | ColorSchemeSource;
 
 export interface SurfaceEnv {
   kind: SurfaceKind;

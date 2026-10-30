@@ -7,6 +7,7 @@
  */
 
 import { storage } from '#imports';
+import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { PROJECT_PREFIX } from '@/constants';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from './defs';
 
@@ -21,5 +22,5 @@ export const visualDirectionStorage = storage.defineItem<VisualDirection>(`local
 
 export const visualPrimaryColorStorage = storage.defineItem<VisualPrimaryColor>(
   `local:${PROJECT_PREFIX}:visual:primary-color`,
-  { fallback: 'blue' }
+  { fallback: DEFAULT_PRIMARY_COLOR }
 );

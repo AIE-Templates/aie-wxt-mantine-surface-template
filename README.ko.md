@@ -1,5 +1,7 @@
 # aie-wxt-mantine-surface-template
 
+> 선택 테마 모듈, RPC 경계, 여러 진입점 / iframe 및 생명주기 정리 예시: [Surface 도입 가이드](docs/surface-recipes.ko.md).
+
 [English](./README.md) | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | **한국어**
 
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
@@ -139,8 +141,8 @@ Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있�
 `useVisual()`은 테마 관련 로직을 처리하는 통합 훅입니다. Mantine의 네이티브 훅을 직접 호출하는 대신 이 훅을 사용하십시오.
 
 - 컬러 스킴 관리 (`light`, `dark` 또는 `auto`).
-- 텍스트 렌더링 방향 (Mantine의 `DirectionProvider`를 이용한 `ltr` 및 `rtl` 지원).
-- 프라이머리 컬러의 동적 생성: Mantine 프리셋 색상명(예: `blue`) 또는 임의의 16진수 색상 코드를 전달하면, 시스템이 런타임에 완전한 10단계의 색상 팔레트를 자동 생성합니다.
+- 텍스트 렌더링 방향 (Surface 전용 Context와 루트 속성으로 `ltr` / `rtl`을 지원하며 호스트의 방향은 변경하지 않습니다).
+- 기본 색상 선택: 이름이 있는 팔레트(사용자 정의 색상과 virtual color 포함)는 애플리케이션 테마에서 찾고 HEX 값은 10단계 팔레트를 생성합니다.
 
 ### 상태 동기화
 
@@ -153,7 +155,7 @@ Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있�
 본 템플릿은 컨텍스트 간 통신을 위해 강력한 타입 추론을 지원하는 두 개의 채널을 제공합니다.
 
 - **메시징 (`core/messaging`):** `ProtocolMap`에 통신 인터페이스를 등록하기만 하면, 송신 및 수신 측에서 타입이 완벽하게 보장되는 `sendMessage` 및 `onMessage` 메서드를 사용할 수 있습니다. 이는 기존의 취약한 문자열 기반 액션 식별자나 번거로운 이벤트 리스너 작성을 불필요하게 만듭니다.
-- **RPC (`core/rpc`):** 서비스 클래스를 한 번 정의하고 백그라운드 스크립트에서 등록하면, `@webext-core/proxy-service`를 통해 어떠한 Surface에서든 마치 로컬 함수를 호출하듯 원격 메서드를 실행할 수 있습니다. 이 방식은 크로스 오리진 Fetch, 대용량 파일 다운로드, 장기 실행 작업 등 백그라운드 환경의 무거운 처리에 가장 이상적입니다.
+- **RPC (`core/rpc`):** 클라이언트는 `core/rpc/echo/contract.ts`에서 인터페이스를 import하고 백그라운드는 `impl.ts`에서 구현을 import하여 등록합니다. `@webext-core/proxy-service`를 통해 어떠한 Surface에서든 마치 로컬 함수를 호출하듯 원격 메서드를 실행할 수 있습니다. 이 방식은 크로스 오리진 Fetch, 대용량 파일 다운로드, 장기 실행 작업 등 백그라운드 환경의 무거운 처리에 가장 이상적입니다.
 
 ---
 

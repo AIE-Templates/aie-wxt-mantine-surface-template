@@ -30,3 +30,11 @@ To ensure the extension functions correctly and avoids conflicts with host pages
 - `src/react-app/managers/VisualManager/`: The main integration point for Mantine (`MantineRegistry`). When building new managers, mirror this file structure. Ensure floating components retain their configured `zIndex` and `floatingStrategy` to prevent them from rendering underneath other page elements.
 - `postcss.config.cjs`: Handles the `--tw-` to `--aie-tw-` prefixing and re-anchors styles to `:root,:host`.
 - `scripts/audit-css-vars.mjs`: Script to verify that CSS variables are correctly scoped.
+
+## Optional customization
+
+- App tokens/defaults live in `src/react-app/theme.ts`; the initial primary-color preference lives in `theme-defaults.ts`. Surface isolation defaults merge last.
+- Direction context and `dir` attributes belong to each surface root; do not restore Mantine's document-global DirectionProvider.
+- External `ColorSchemeSource` values are supported without loading host detection. `src/surface/addons/host-scheme.ts` is an opt-in accessory only.
+- RPC clients import `contract.ts`; registration and implementation stay in `impl.ts`, imported by background.
+- See `docs/surface-recipes.md` for frame scope and WXT lifecycle examples.

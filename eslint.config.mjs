@@ -1,9 +1,9 @@
-import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
+import eslintConfigPrettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
+import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import reactHooks from 'eslint-plugin-react-hooks';
-import eslintConfigPrettier from 'eslint-config-prettier';
 import autoImports from './.wxt/eslint-auto-imports.mjs';
 
 export default defineConfig(
@@ -74,6 +74,41 @@ export default defineConfig(
         {
           selector: "MemberExpression[object.name='document'][property.name='documentElement']",
           message: 'Surface UI must not assume its mount point — use useSurface().rootElement instead.',
+        },
+      ],
+    },
+  },
+  {
+    // Protect only the template RPC implementation boundary; downstream
+    // services and dependencies remain application-owned.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/entrypoints/background.ts', 'src/core/rpc/**/impl.ts', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/rpc/**/impl', '**/rpc/**/impl.ts'],
+              message: 'Import the RPC contract from clients; implementations belong in the background.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/rpc/**/contract.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/impl', '**/impl.ts'],
+              message: 'RPC contracts must not import implementations.',
+            },
+          ],
         },
       ],
     },

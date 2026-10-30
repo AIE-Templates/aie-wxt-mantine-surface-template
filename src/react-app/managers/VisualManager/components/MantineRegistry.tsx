@@ -13,13 +13,12 @@
  * Internal component; application code renders ManagersRegistry instead.
  */
 
-import { useMemo, useState, type PropsWithChildren } from 'react';
+import { useLayoutEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
 import { generateColorsMap } from '@mantine/colors-generator';
 import {
   Combobox,
   createTheme,
-  DEFAULT_THEME,
-  DirectionProvider,
+  DirectionContext,
   Drawer,
   HoverCard,
   MantineProvider,
@@ -36,38 +35,34 @@ import {
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { useSurface } from '@/surface/context';
+import { appTheme } from '@/react-app/theme';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
 import { extStorageColorSchemeManager } from '../colorSchemeManager';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from '../defs';
 
-/**
- * Base theme applied regardless of surface or primary color.
- * `focusRing: 'auto'` keeps the ring for keyboard focus only.
- */
-const baseTheme = createTheme({
-  focusRing: 'auto',
-  components: {
-    Modal: Modal.extend({
-      defaultProps: {
-        centered: true,
-      },
-    }),
-  },
-});
+const noopSubscribe = () => () => {};
+const lightSnapshot = () => 'light' as const;
 
 export interface MantineRegistryProps extends PropsWithChildren {
   colorScheme: VisualColorScheme;
   direction: VisualDirection;
   primaryColor: VisualPrimaryColor;
+  onDirectionChange: (direction: VisualDirection) => void;
 }
 
-export default function MantineRegistry({ colorScheme, direction, primaryColor, children }: MantineRegistryProps) {
+export default function MantineRegistry({
+  colorScheme,
+  direction,
+  primaryColor,
+  onDirectionChange,
+  children,
+}: MantineRegistryProps) {
   const env = useSurface();
   const isShadow = env.kind === 'shadow';
   const [colorSchemeManager] = useState(() => extStorageColorSchemeManager(colorScheme));
 
   // Hex primary colors get a generated palette; named colors resolve from
-  // the default theme.
+  // the application theme without flattening virtual colors.
   const { colors, baseColorIndex } = useMemo((): {
     colors: MantineColorsTuple | undefined;
     baseColorIndex: MantineColorShade | MantinePrimaryShade | undefined;
@@ -79,10 +74,7 @@ export default function MantineRegistry({ colorScheme, direction, primaryColor, 
         baseColorIndex: result.baseColorIndex as MantineColorShade,
       };
     }
-    return {
-      colors: DEFAULT_THEME.colors[primaryColor],
-      baseColorIndex: DEFAULT_THEME.primaryShade,
-    };
+    return { colors: undefined, baseColorIndex: undefined };
   }, [primaryColor]);
 
   const theme = useMemo(() => {
@@ -94,15 +86,14 @@ export default function MantineRegistry({ colorScheme, direction, primaryColor, 
             primaryColor: 'primary',
             primaryShade: baseColorIndex,
           }
-        : {}),
+        : { primaryColor }),
       components: {
         ...(isShadow
           ? {
-              Portal: { defaultProps: { target: env.portalTarget } },
               // lockScroll mutates the HOST page (react-remove-scroll sets
               // overflow:hidden + rewrites body padding + data attributes on
               // document.body) — never acceptable from an injected surface.
-              // `centered` comes from baseTheme; mergeThemeOverrides deep-merges defaultProps.
+              // `centered` comes from appTheme; mergeThemeOverrides deep-merges defaultProps.
               Modal: Modal.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
               Drawer: Drawer.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
               // Floating overlays portal to the surface root as SIBLINGS of
@@ -140,14 +131,56 @@ export default function MantineRegistry({ colorScheme, direction, primaryColor, 
           : {}),
       },
     };
-    return mergeThemeOverrides(baseTheme, createTheme(overrides));
-  }, [env, isShadow, colors, baseColorIndex]);
+    const merged = mergeThemeOverrides(appTheme, createTheme(overrides));
+    if (isShadow) {
+      // Assign DOM nodes after deep-merging: Mantine's generic merge would
+      // clone the element into a plain object if appTheme also set a target.
+      const portal = merged.components?.Portal;
+      merged.components = {
+        ...merged.components,
+        Portal: { ...portal, defaultProps: { ...portal?.defaultProps, target: env.portalTarget } },
+      };
+    }
+    return merged;
+  }, [env, isShadow, colors, baseColorIndex, primaryColor]);
 
-  const forceColorScheme =
-    env.colorSchemeStrategy === 'force-light' ? 'light' : env.colorSchemeStrategy === 'force-dark' ? 'dark' : undefined;
+  // An external source is opt-in; the core never imports host detection.
+  const source = typeof env.colorSchemeStrategy === 'object' ? env.colorSchemeStrategy : undefined;
+  const externalScheme = useSyncExternalStore(
+    source?.subscribe ?? noopSubscribe,
+    source?.getSnapshot ?? lightSnapshot,
+    source?.getSnapshot ?? lightSnapshot
+  );
+  const forceColorScheme = source
+    ? externalScheme
+    : env.colorSchemeStrategy === 'force-light'
+      ? 'light'
+      : env.colorSchemeStrategy === 'force-dark'
+        ? 'dark'
+        : undefined;
+
+  // Mantine's DirectionProvider writes document.documentElement. Scope both
+  // CSS direction and the context to this surface instead, including portals.
+  useLayoutEffect(() => {
+    const root = env.rootElement;
+    const previous = root.getAttribute('dir');
+    root.setAttribute('dir', direction);
+    return () => {
+      if (previous === null) root.removeAttribute('dir');
+      else root.setAttribute('dir', previous);
+    };
+  }, [env.rootElement, direction]);
+  const directionContext = useMemo(
+    () => ({
+      dir: direction,
+      setDirection: onDirectionChange,
+      toggleDirection: () => onDirectionChange(direction === 'ltr' ? 'rtl' : 'ltr'),
+    }),
+    [direction, onDirectionChange]
+  );
 
   return (
-    <DirectionProvider initialDirection={direction}>
+    <DirectionContext.Provider value={directionContext}>
       <MantineProvider
         theme={theme}
         defaultColorScheme={colorScheme}
@@ -159,6 +192,6 @@ export default function MantineRegistry({ colorScheme, direction, primaryColor, 
         <Notifications autoClose={5000} position="top-right" zIndex={isShadow ? Z_INDEX.notification : undefined} />
         <ModalsProvider>{children}</ModalsProvider>
       </MantineProvider>
-    </DirectionProvider>
+    </DirectionContext.Provider>
   );
 }

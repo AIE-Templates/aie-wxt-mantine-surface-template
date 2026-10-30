@@ -1,5 +1,7 @@
 # aie-wxt-mantine-surface-template
 
+> Optional customization and lifecycle examples: [Surface recipes](docs/surface-recipes.md) (English).
+
 **English** | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
@@ -139,8 +141,8 @@ Styles are distributed via constructable stylesheets. If the browser does not su
 `useVisual()` is the primary hook for all theme-related operations. It replaces direct usage of Mantine's native hooks and provides:
 
 - Color scheme management (`light`, `dark`, or `auto`).
-- Text direction control (`ltr` / `rtl` via Mantine's `DirectionProvider`).
-- Primary color generation. Providing a Mantine palette name (e.g., `blue`) or a hexadecimal code dynamically generates a complete 10-shade palette.
+- Text direction control (`ltr` / `rtl` via a surface-local direction context and root attribute).
+- Primary color selection: named palettes (including custom and virtual colors) resolve from the application theme; HEX values generate a 10-shade palette.
 
 ### State Synchronization
 
@@ -153,7 +155,7 @@ For synchronizing custom reactive state, utilize the `useExtStorage` hook to wra
 The template provides two strictly-typed channels for cross-context communication:
 
 - **Messaging** (`core/messaging`): Registering an entry in `ProtocolMap` automatically provisions type-safe `sendMessage` and `onMessage` utilities, eliminating string-based actions and manual listener management.
-- **RPC** (`core/rpc`): Define a service class, register it within the background script, and invoke it from any surface via `@webext-core/proxy-service` as a local function. This is the recommended approach for heavy background operations, such as cross-origin requests, large downloads, or long-running tasks.
+- **RPC** (`core/rpc`): Keep the client contract in `core/rpc/echo/contract.ts` and the implementation/registration in `impl.ts`, then invoke it from any surface via `@webext-core/proxy-service` as a local function. This is the recommended approach for heavy background operations, such as cross-origin requests, large downloads, or long-running tasks.
 
 ---
 

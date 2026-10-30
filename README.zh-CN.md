@@ -1,5 +1,7 @@
 # aie-wxt-mantine-surface-template
 
+> 可选主题配件、RPC 边界、多入口 / iframe 与生命周期清理示例：[Surface 接入指南](docs/surface-recipes.zh-CN.md)。
+
 [English](./README.md) | **简体中文** | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
@@ -139,8 +141,8 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 `useVisual()` 是处理所有主题相关逻辑的统一 Hook，请避免直接调用 Mantine 的底层 Hooks。该 Hook 封装了以下功能：
 
 - 颜色模式切换（`light`、`dark` 或 `auto`）。
-- 文本排版方向（通过 Mantine 的 `DirectionProvider` 提供 `ltr` 与 `rtl` 支持）。
-- 主题色动态生成：只需传入 Mantine 预设的色板名称（如 `blue`）或任意十六进制颜色值，系统即可在运行时动态生成完整的 10 阶调色板。
+- 文本排版方向（通过 Surface 自有方向 Context 和根节点属性提供 `ltr` 与 `rtl` 支持，不修改宿主方向）。
+- 主题色选择：命名色板（包括自定义色和 virtual color）从应用主题中解析；HEX 值生成 10 阶调色板。
 
 ### 状态同步
 
@@ -153,7 +155,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 本模板提供两条具备严格类型推导的跨上下文通信通道：
 
 - **消息传递（Messaging，基于 `core/messaging`）：** 在 `ProtocolMap` 中注册通信接口后，即可在发送与接收端获取完全类型安全的 `sendMessage` 与 `onMessage` 方法。彻底淘汰脆弱的字符串行为约束与冗长的事件监听代码。
-- **远程过程调用（RPC，基于 `core/rpc`）：** 一次性编写服务类并在后台脚本（Background）中完成注册，即可通过 `@webext-core/proxy-service` 在任意 Surface 中像调用本地函数一样发起请求。此通道是执行跨域 Fetch、大文件处理及长周期任务的最佳实践。
+- **远程过程调用（RPC，基于 `core/rpc`）：** 客户端从 `core/rpc/echo/contract.ts` 导入接口，后台从 `impl.ts` 导入实现并完成注册，即可通过 `@webext-core/proxy-service` 在任意 Surface 中像调用本地函数一样发起请求。此通道是执行跨域 Fetch、大文件处理及长周期任务的最佳实践。
 
 ---
 
