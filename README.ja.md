@@ -7,7 +7,7 @@
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AIEPhoenix/aie-wxt-mantine-surface-template)
-![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![WXT](https://img.shields.io/badge/WXT-0.21-67D55E)
 ![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -35,7 +35,7 @@
 
 Node.js 22.12+ と pnpm 10.7.1 が必要です。WXT 0.21 は Vite 8 を使用し、ブラウザーの自動起動には明示的な `web-ext` 依存関係を使用します。生成される TypeScript 設定では新しい厳密なチェックを維持します。
 
-Content エントリーは `cssInjectionMode: 'manual'` を使用し、`virtual:surface-css` を `createShadowSurfaceUi` に渡します。ビルドプラグインは CSS Modules を含む処理済み CSS 全体をスクリプトに埋め込み、`chrome-extension://` スタイルシートへのリクエストを避けます。通常の CSS import を維持し、モジュールスタイルの別リストは不要です。開発モードでも WXT は各 content エントリーを個別にビルドします。出力 CSS は監査用で、ホストページには読み込まれません。`pnpm audit:surface` または `pnpm audit:surface:firefox` で埋め込み CSS と出力ファイルの一致を確認します。ドキュメントサーフェスは通常のスタイルシート読み込みを維持します。
+Content エントリーは `cssInjectionMode: 'manual'` を使用し、`virtual:surface-css` を `createShadowSurfaceUi` に渡します。ビルドプラグインは CSS Modules を含む処理済み CSS 全体をスクリプトに埋め込み、`chrome-extension://` スタイルシートへのリクエストを避けます。通常の CSS import を維持し、モジュールスタイルの別リストは不要です。開発モードでも WXT は各 content エントリーを個別にビルドします。出力 CSS は監査用で、ホストページには読み込まれず、`pnpm zip` のパッケージにも含まれません。`pnpm audit:surface` または `pnpm audit:surface:firefox` で埋め込み CSS と出力ファイルの一致を確認します。ドキュメントサーフェスは通常のスタイルシート読み込みを維持します。
 
 ```bash
 pnpm install
@@ -60,7 +60,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: ライフサイクル、ストレージ、および純粋なロジックの不変条件をテストします (happy-dom + fake-browser)
 pnpm audit:css           # CSS変数のスコープの安全性を検証します (TailwindやMantineの更新後の実行を推奨)
 pnpm audit:ascii         # ビルドされた成果物が純粋なASCII文字列であることを保証します (Chrome拡張機能読み込み時のCJK/UTF-8起因のエラーを回避)
-                         # 両監査には `:firefox` バリアントがあり、`pnpm build:firefox` の出力を検査します
+pnpm audit:surface       # 各 content script が完全な CSS を埋め込んでいることを検証します (manifest による注入や web-accessible なスタイルシートなし)
+                         # 3つの監査すべてに `:firefox` バリアントがあり、`pnpm build:firefox` の出力を検査します
 
 pnpm zip                 # Chrome Web Store 向けの zip アーカイブを生成します (AMO向けは `pnpm zip:firefox` を使用)
 ```
@@ -186,7 +187,7 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 
 ### 厳格な CSP との互換性
 
-ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——WXT が注入する `<style>`、Mantine のテーマ変数、satellites の `adoptedStyleSheets`——そのためホストの `style-src`/`script-src` は届きません。ホストを変更する唯一の例外（Mantine がカラースキーム切替時にページの `<head>` に注入する遷移用 `<style>`）は `keepTransitions: true` で無効化済みです。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
+ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、surface のスタイルは shadow root 内に配置されます——WXT が注入する `<style>`、Mantine のテーマ変数、satellites の `adoptedStyleSheets`——そのためホストの `style-src`/`script-src` は届きません。想定されるホストへの追加は、WXT がページの `<head>` に追加する `<style wxt-shadow-root-document-styles>` のみです。`@property` ルールは shadow root 内では効かないため、WXT がドキュメントへ引き上げます。登録されるのはプレフィックス付きの `--aie-tw-*` プロパティだけで、UI のアンマウント時に削除されます。Mantine がカラースキーム切替時に注入する遷移用 `<style>` はスコープのない2つ目の追加になるため、`keepTransitions: true` で無効化しています。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
 
 ---
 

@@ -3,6 +3,14 @@
  * Ordinary CSS and CSS Modules keep using Vite's pipeline; the emitted CSS
  * asset remains available for audits but is neither fetched nor host-injected.
  * WXT builds each content script separately, including in development mode.
+ *
+ * The CSS only exists once Vite has emitted it (generateBundle), which is after
+ * minification. The virtual module therefore exports a placeholder wrapped in
+ * an expression the minifier cannot evaluate (an unknown global read), so code
+ * such as `css.replaceAll(...)`, `css.length` or `css ? a : b` stays a runtime
+ * operation and sees the real CSS instead of being folded against the marker.
+ * The global is never set; content scripts run in an isolated world, so the
+ * host page cannot set it either.
  */
 import type { Plugin } from 'vite';
 import { escapeNonAscii } from './to-utf8';
@@ -10,23 +18,35 @@ import { escapeNonAscii } from './to-utf8';
 const MODULE_ID = 'virtual:surface-css';
 const RESOLVED_ID = `\0${MODULE_ID}`;
 const MARKER = '__AIE_BUNDLED_SURFACE_CSS_61d9a7__';
+const OPAQUE_GLOBAL = '__aieSurfaceCssUnset';
 
 export default function inlineSurfaceCss(): Plugin {
+  let loaded = false;
   return {
     name: 'inline-surface-css',
     apply: 'build',
     enforce: 'post',
+    buildStart() {
+      loaded = false;
+    },
     resolveId(id) {
       if (id === MODULE_ID) return RESOLVED_ID;
     },
     load(id) {
-      if (id === RESOLVED_ID) return `export default ${JSON.stringify(MARKER)};`;
+      if (id !== RESOLVED_ID) return;
+      loaded = true;
+      return `export default String(globalThis.${OPAQUE_GLOBAL} ?? ${JSON.stringify(MARKER)});`;
     },
     generateBundle: {
       order: 'post',
       handler(_options, bundle) {
         const consumers = Object.values(bundle).filter((item) => item.type === 'chunk' && item.code.includes(MARKER));
-        if (consumers.length === 0) return;
+        if (consumers.length === 0) {
+          if (loaded) {
+            this.error('The surface CSS placeholder was removed from the bundle unexpectedly.');
+          }
+          return;
+        }
         // Never accidentally collect styles from unrelated entries or chunks.
         const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
         if (consumers.length !== 1 || chunks.length !== 1) {
@@ -39,17 +59,122 @@ export default function inlineSurfaceCss(): Plugin {
         const sheet = sheets[0]!;
         if (sheet.type !== 'asset') this.error('Expected a CSS asset.');
         const css = typeof sheet.source === 'string' ? sheet.source : new TextDecoder().decode(sheet.source);
+        // This hook runs after CSS generation and may run after the ASCII
+        // plugin, so escape the inserted literal here as well.
+        const literal = escapeNonAscii(JSON.stringify(css));
         for (const chunk of chunks) {
           const token = new RegExp('(["\'`])' + MARKER + '\\1', 'g');
-          if (!token.test(chunk.code)) {
-            this.error('The surface CSS placeholder was transformed unexpectedly.');
-          }
-          token.lastIndex = 0;
-          // This hook runs after CSS generation and may run after the ASCII
-          // plugin, so escape the inserted literal here as well.
-          chunk.code = chunk.code.replaceAll(token, () => escapeNonAscii(JSON.stringify(css)));
+          const edits: Edit[] = [];
+          chunk.code = chunk.code.replaceAll(token, (match: string, _quote: string, offset: number) => {
+            edits.push({ offset, removed: match.length, inserted: literal.length });
+            return literal;
+          });
+          if (edits.length === 0) this.error('The surface CSS placeholder was transformed unexpectedly.');
+          if (chunk.map) chunk.map.mappings = shiftMappings(chunk.map.mappings, locate(chunk.code, edits));
         }
       },
     },
   };
+}
+
+interface Edit {
+  /** Offset of the replaced text in the ORIGINAL code. */
+  offset: number;
+  removed: number;
+  inserted: number;
+}
+
+interface LineShift {
+  line: number;
+  /** Generated columns at or after this (pre-edit) column move by `delta`. */
+  fromColumn: number;
+  delta: number;
+}
+
+/** Convert offset edits into per-line column shifts (the literal never contains a newline). */
+function locate(newCode: string, edits: Edit[]): LineShift[] {
+  const shifts: LineShift[] = [];
+  let drift = 0;
+  for (const edit of edits) {
+    const newOffset = edit.offset + drift;
+    const lineStart = newCode.lastIndexOf('\n', newOffset - 1) + 1;
+    const line = countNewlines(newCode, newOffset);
+    const prior = shifts.filter((s) => s.line === line).reduce((sum, s) => sum + s.delta, 0);
+    shifts.push({
+      line,
+      fromColumn: newOffset - lineStart - prior + edit.removed,
+      delta: edit.inserted - edit.removed,
+    });
+    drift += edit.inserted - edit.removed;
+  }
+  return shifts;
+}
+
+function countNewlines(code: string, end: number): number {
+  let count = 0;
+  for (let i = code.indexOf('\n'); i !== -1 && i < end; i = code.indexOf('\n', i + 1)) count++;
+  return count;
+}
+
+/**
+ * Rolldown's generateBundle map is final and not recomposed after code edits,
+ * so shift the generated columns that follow each inserted literal. Only the
+ * generated column (the first, line-relative VLQ field of each segment) moves.
+ */
+export function shiftMappings(mappings: string, shifts: LineShift[]): string {
+  if (shifts.length === 0) return mappings;
+  return mappings
+    .split(';')
+    .map((lineText, line) => {
+      const own = shifts.filter((s) => s.line === line);
+      if (own.length === 0 || lineText === '') return lineText;
+      let original = 0;
+      let previousShifted = 0;
+      return lineText
+        .split(',')
+        .map((segment) => {
+          const fields = decodeVlq(segment);
+          original += fields[0]!;
+          const shifted = original + own.filter((s) => original >= s.fromColumn).reduce((sum, s) => sum + s.delta, 0);
+          fields[0] = shifted - previousShifted;
+          previousShifted = shifted;
+          return encodeVlq(fields);
+        })
+        .join(',');
+    })
+    .join(';');
+}
+
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+export function decodeVlq(segment: string): number[] {
+  const values: number[] = [];
+  let value = 0;
+  let shift = 0;
+  for (const char of segment) {
+    const digit = BASE64.indexOf(char);
+    value += (digit & 31) * 2 ** shift;
+    if (digit & 32) {
+      shift += 5;
+    } else {
+      values.push(value % 2 === 1 ? -(value - 1) / 2 : value / 2);
+      value = 0;
+      shift = 0;
+    }
+  }
+  return values;
+}
+
+function encodeVlq(values: number[]): string {
+  let out = '';
+  for (const signed of values) {
+    let value = signed < 0 ? -signed * 2 + 1 : signed * 2;
+    do {
+      let digit = value % 32;
+      value = Math.floor(value / 32);
+      if (value > 0) digit |= 32;
+      out += BASE64[digit];
+    } while (value > 0);
+  }
+  return out;
 }

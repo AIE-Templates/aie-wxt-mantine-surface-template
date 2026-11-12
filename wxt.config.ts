@@ -35,6 +35,11 @@ export default defineConfig({
       enabled: 9,
     },
   },
+  zip: {
+    // Content-script CSS is embedded in its JS (inline-surface-css) and only
+    // kept on disk for `audit:surface`; it never loads, so keep it out of the package.
+    exclude: ['content-scripts/*.css'],
+  },
   dev: {
     server: {
       port: 3012,

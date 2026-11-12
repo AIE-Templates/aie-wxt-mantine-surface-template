@@ -7,7 +7,7 @@
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AIEPhoenix/aie-wxt-mantine-surface-template)
-![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![WXT](https://img.shields.io/badge/WXT-0.21-67D55E)
 ![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -35,7 +35,7 @@
 
 需要 Node.js 22.12+ 和 pnpm 10.7.1。WXT 0.21 使用 Vite 8，并显式依赖 `web-ext` 以自动启动浏览器。生成的 TypeScript 配置保留新版严格检查。
 
-Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。输出的 CSS 文件用于审计，不会加载到宿主页面；运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
+Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。输出的 CSS 文件用于审计，不会加载到宿主页面，`pnpm zip` 也不会把它打进安装包；运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
 
 ```bash
 pnpm install
@@ -60,7 +60,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest：测试生命周期、存储以及纯逻辑断言（基于 happy-dom 与 fake-browser）
 pnpm audit:css           # 验证 CSS 变量的作用域安全性（建议在升级 Tailwind 或 Mantine 后执行）
 pnpm audit:ascii         # 确保构建产物为纯 ASCII 字符（绕过 Chrome 在加载扩展时因 CJK/UTF-8 字符导致的解析错误）
-                         # 两个审计均提供 `:firefox` 变体，用于检查 `pnpm build:firefox` 的产物
+pnpm audit:surface       # 确认每个 content script 都内嵌了完整 CSS（不经 manifest 注入，也不作为 web-accessible 样式表暴露）
+                         # 三个审计均提供 `:firefox` 变体，用于检查 `pnpm build:firefox` 的产物
 
 pnpm zip                 # 打包生成适用于 Chrome Web Store 的 zip 压缩包（`pnpm zip:firefox` 适用于 AMO）
 ```
@@ -186,7 +187,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 ### 严格 CSP 兼容性
 
-即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——WXT 注入的 `<style>`、Mantine 的主题变量、satellites 的 `adoptedStyleSheets`——宿主的 `style-src`/`script-src` 触及不到。唯一会改动宿主的例外（Mantine 切换配色方案时向页面 `<head>` 注入的过渡 `<style>`）已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
+即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），surface 的样式都落在 shadow root 内部——WXT 注入的 `<style>`、Mantine 的主题变量、satellites 的 `adoptedStyleSheets`——宿主的 `style-src`/`script-src` 触及不到。唯一预期内的宿主改动是 WXT 在页面 `<head>` 追加的 `<style wxt-shadow-root-document-styles>`：`@property` 规则在 shadow root 内不生效，所以 WXT 把它们提升到文档级。这些规则只注册带前缀的 `--aie-tw-*` 属性，并在 UI 卸载时移除。Mantine 切换配色方案时注入的过渡 `<style>` 会是第二处、且不带作用域的宿主改动，已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
 
 ---
 

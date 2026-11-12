@@ -7,7 +7,7 @@
 [![Use this template](https://img.shields.io/badge/Use_this_template-2ea44f?style=flat&logo=github&logoColor=white)](https://github.com/AIEPhoenix/aie-wxt-mantine-surface-template/generate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AIEPhoenix/aie-wxt-mantine-surface-template)
-![WXT](https://img.shields.io/badge/WXT-0.20-67D55E)
+![WXT](https://img.shields.io/badge/WXT-0.21-67D55E)
 ![Mantine](https://img.shields.io/badge/Mantine-9-339AF0?logo=mantine&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
@@ -35,7 +35,7 @@ It guarantees comprehensive CSS isolation: your extension styles will not affect
 
 Requires Node.js 22.12+ and pnpm 10.7.1. WXT 0.21 uses Vite 8 and an explicit `web-ext` dependency for automatic browser startup. The generated TypeScript configuration keeps the new strict checks enabled.
 
-The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The emitted CSS file is retained for auditing and is not loaded into the host page. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
+The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The emitted CSS file is retained for auditing; it is not loaded into the host page and `pnpm zip` leaves it out of the package. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
 
 ```bash
 pnpm install
@@ -60,7 +60,8 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: evaluates lifecycle, storage, and logic invariants (happy-dom + fake-browser)
 pnpm audit:css           # Validates CSS variable scoping (recommended after updating Tailwind/Mantine)
 pnpm audit:ascii         # Asserts build artifacts are pure ASCII (prevents Chrome CJK/UTF-8 load-time rejections)
-                         # Both audits have `:firefox` variants that check the `pnpm build:firefox` output instead
+pnpm audit:surface       # Asserts each content script embeds its complete CSS (no manifest injection or web-accessible stylesheet)
+                         # All three audits have `:firefox` variants that check the `pnpm build:firefox` output instead
 
 pnpm zip                 # Packages a zip archive for the Chrome Web Store (`pnpm zip:firefox` for AMO)
 ```
@@ -186,7 +187,7 @@ Order: `floatUi < mainUi < modal < popover < notification < max`.
 
 ### Strict-CSP Compatibility
 
-The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — WXT's injected `<style>`, Mantine's theme variables, and satellites' `adoptedStyleSheets` — so the host's `style-src`/`script-src` never reach it. The one host-mutating exception (Mantine's color-scheme transition `<style>` injected into the page `<head>`) is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
+The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and the surface's styling lands inside the shadow root — WXT's injected `<style>`, Mantine's theme variables, and satellites' `adoptedStyleSheets` — so the host's `style-src`/`script-src` never reach it. The one expected host addition is WXT's `<style wxt-shadow-root-document-styles>` in the page `<head>`: `@property` rules have no effect inside a shadow root, so WXT hoists them to the document. They only register the prefixed `--aie-tw-*` properties and are removed when the UI unmounts. Mantine's color-scheme transition `<style>` would be a second, unscoped addition; it is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
 
 ---
 
