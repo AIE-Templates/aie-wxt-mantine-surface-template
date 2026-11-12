@@ -42,7 +42,13 @@ function VisualStateBridge({ children, ...props }: VisualStateBridgeProps) {
   const activeColorScheme = useComputedColorScheme('light');
   const setColorScheme = (colorScheme: VisualColorScheme) => {
     props.onColorSchemeChange(colorScheme);
-    mantineSetColorScheme(colorScheme); // → colorSchemeManager.set → storage
+    // The preference is extension-global, so persist it here: Mantine's setter
+    // is a no-op (no colorSchemeManager.set) while this surface has a forced or
+    // external scheme. Otherwise it also writes the same value, harmlessly.
+    visualColorSchemeStorage.setValue(colorScheme).catch((error) => {
+      console.warn('[VisualManager] failed to persist color scheme', error);
+    });
+    mantineSetColorScheme(colorScheme);
   };
 
   return (

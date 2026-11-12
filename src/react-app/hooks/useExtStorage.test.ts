@@ -120,3 +120,54 @@ it('handles failed initial reads and remains subscribed for recovery', async () 
   hook.unmount();
   warning.mockRestore();
 });
+
+it('updates the snapshot synchronously on setValue and ignores stale echoes while writing', async () => {
+  const { item, reads, watchers } = controlledItem();
+  const writes: Array<() => void> = [];
+  item.setValue.mockImplementation(() => new Promise<void>((resolve) => writes.push(resolve)));
+  const hook = renderHook(() => useExtStorage(item));
+  await act(async () => reads[0]!('ab'));
+
+  // Typing "abX" then "abXc": each keystroke renders immediately (caret-safe).
+  act(() => hook.result.current[1]('abX'));
+  expect(hook.result.current[0]).toBe('abX');
+  act(() => hook.result.current[1]('abXc'));
+  expect(hook.result.current[0]).toBe('abXc');
+
+  // The echo of the first write arrives while the second is still in flight.
+  await act(async () => {
+    for (const cb of watchers) cb('abX');
+  });
+  expect(hook.result.current[0]).toBe('abXc');
+
+  // Once every write settles, one read reconciles with storage.
+  await act(async () => {
+    writes.forEach((resolve) => resolve());
+  });
+  expect(reads).toHaveLength(2);
+  await act(async () => reads[1]!('abXc'));
+  expect(hook.result.current[0]).toBe('abXc');
+  hook.unmount();
+});
+
+it('reconciles to a newer value another surface wrote during a local write', async () => {
+  const { item, reads, watchers } = controlledItem();
+  let finishWrite = () => {};
+  item.setValue.mockImplementation(() => new Promise<void>((resolve) => (finishWrite = resolve)));
+  const hook = renderHook(() => useExtStorage(item));
+  await act(async () => reads[0]!('start'));
+  act(() => hook.result.current[1]('local'));
+  await act(async () => {
+    for (const cb of watchers) cb('remote'); // ignored while writing
+  });
+  expect(hook.result.current[0]).toBe('local');
+  await act(async () => finishWrite());
+  await act(async () => reads[1]!('remote'));
+  expect(hook.result.current[0]).toBe('remote');
+  // After settling, watch events apply directly again.
+  await act(async () => {
+    for (const cb of watchers) cb('later');
+  });
+  expect(hook.result.current[0]).toBe('later');
+  hook.unmount();
+});

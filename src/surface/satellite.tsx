@@ -82,19 +82,32 @@ interface SatelliteRecord {
   node: ReactNode;
 }
 
-/** Whether the satellite still sits at `position` relative to its anchor. */
-function isSatelliteAdjacent(anchor: Element, host: HTMLElement, position: InsertPosition): boolean {
-  switch (position) {
-    case 'beforebegin':
-      return anchor.previousElementSibling === host;
-    case 'afterbegin':
-      return anchor.firstElementChild === host;
-    case 'beforeend':
-      return anchor.lastElementChild === host;
-    case 'afterend':
-    default:
-      return anchor.nextElementSibling === host;
+/**
+ * Whether the satellite still sits at `position` relative to its anchor.
+ * Satellites sharing the same anchor and position (`siblings`) may sit between
+ * it and the anchor: each counts as adjacent while the run is unbroken, so
+ * several satellites on one anchor settle instead of displacing each other on
+ * every sweep.
+ */
+function isSatelliteAdjacent(
+  anchor: Element,
+  host: HTMLElement,
+  position: InsertPosition,
+  siblings: ReadonlySet<Element>
+): boolean {
+  const [start, step]: [Element | null, 'next' | 'previous'] =
+    position === 'beforebegin'
+      ? [anchor.previousElementSibling, 'previous']
+      : position === 'afterbegin'
+        ? [anchor.firstElementChild, 'next']
+        : position === 'beforeend'
+          ? [anchor.lastElementChild, 'previous']
+          : [anchor.nextElementSibling, 'next'];
+  let node = start;
+  while (node && node !== host && siblings.has(node)) {
+    node = step === 'next' ? node.nextElementSibling : node.previousElementSibling;
   }
+  return node === host;
 }
 
 let nextSatelliteId = 0;
@@ -318,12 +331,21 @@ class SatelliteRegistry {
         // observer + commit) — collecting the dead ids up front keeps this loop
         // independent of iteration-during-mutation and commit side effects.
         const dead: string[] = [];
+        const groups = new Map<Element, Map<InsertPosition, Set<Element>>>();
+        for (const record of this.records.values()) {
+          const byPosition = groups.get(record.anchor) ?? new Map<InsertPosition, Set<Element>>();
+          groups.set(record.anchor, byPosition);
+          const group = byPosition.get(record.position) ?? new Set<Element>();
+          byPosition.set(record.position, group);
+          group.add(record.hostElement);
+        }
         for (const record of this.records.values()) {
           if (!record.hostElement.isConnected || !record.anchor.isConnected) {
             dead.push(record.id);
             continue;
           }
-          if (!isSatelliteAdjacent(record.anchor, record.hostElement, record.position)) {
+          const siblings = groups.get(record.anchor)!.get(record.position)!;
+          if (!isSatelliteAdjacent(record.anchor, record.hostElement, record.position, siblings)) {
             record.anchor.insertAdjacentElement(record.position, record.hostElement);
           }
         }

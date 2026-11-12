@@ -11,7 +11,7 @@ import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
 import { SURFACE_ROOT_CLASS } from '@/constants';
 import { useVisual } from '../context';
 import VisualManagerRegistry from '../registry';
-import { visualDirectionStorage } from '../storages';
+import { visualColorSchemeStorage, visualDirectionStorage } from '../storages';
 import MantineRegistry from './MantineRegistry';
 
 vi.mock('@/react-app/theme', async () => {
@@ -196,4 +196,29 @@ it('sets direction on an owned document and restores its original attribute on u
   expect(document.documentElement.getAttribute('dir')).toBe('ltr');
   view.unmount();
   expect(document.documentElement.getAttribute('dir')).toBe('rtl');
+});
+
+it.each([
+  ['force-dark', 'dark'],
+  ['external source', 'light'],
+] as const)('persists the color scheme preference while the surface is %s', async (_mode, visible) => {
+  const env = shadowEnv();
+  const strategy = _mode === 'force-dark' ? 'force-dark' : createColorSchemeSource('light');
+  await visualColorSchemeStorage.setValue('light');
+  function SchemeButton() {
+    const visual = useVisual();
+    return <button onClick={() => visual.setColorScheme('dark')}>dark preference</button>;
+  }
+  const view = render(
+    <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
+      <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+        <SchemeButton />
+      </VisualManagerRegistry>
+    </SurfaceProvider>,
+    { container: env.rootElement }
+  );
+  fireEvent.click(view.getByText('dark preference'));
+  await waitFor(async () => expect(await visualColorSchemeStorage.getValue()).toBe('dark'));
+  // The surface keeps showing its forced/external scheme.
+  expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe(visible);
 });
