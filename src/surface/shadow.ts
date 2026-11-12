@@ -144,18 +144,25 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
       return current.mounted;
     },
     onRemove: (mounted) => {
+      // Only for a mounted UI: remove() can run more than once (see below).
+      if (!current) return;
       // Satellites live outside the shadow host, so WXT's remove() would leave them behind.
-      if (current) releaseSatellites(current.shadowRoot);
+      releaseSatellites(current.shadowRoot);
       current = undefined;
       options.onRemove?.(mounted);
     },
   });
   // WXT removes the UI when the context is invalidated, but only if that
-  // happens after creation; a context that died during the await above would
-  // otherwise get a UI nothing ever removes.
-  const mount = ui.mount;
+  // happens after creation, and without stopping autoMount (which would
+  // re-mount when the anchor reappears). Never mount on a dead context, and
+  // on invalidation use the public remove(), which also stops autoMount.
+  const { mount, autoMount } = ui;
   ui.mount = () => {
     if (!ctx.isInvalid) mount();
   };
+  ui.autoMount = (autoMountOptions) => {
+    if (!ctx.isInvalid) autoMount(autoMountOptions);
+  };
+  ctx.onInvalidated(() => ui.remove());
   return ui;
 }

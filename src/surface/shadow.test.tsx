@@ -1,7 +1,7 @@
 import { ContentScriptContext } from 'wxt/utils/content-script-context';
 import { MantineProvider } from '@mantine/core';
 import { render, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SATELLITE_TAG, SURFACE_ROOT_CLASS } from '@/constants';
 import { SurfaceProvider } from './context';
 import type { SurfaceEnv } from './defs';
@@ -222,4 +222,55 @@ it('does not mount when the context was invalidated during creation', async () =
   ui.mount();
   expect(onMount).not.toHaveBeenCalled();
   expect(ui.shadowHost.isConnected).toBe(false);
+});
+
+describe('autoMount and context invalidation', () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+
+  it('does not auto-mount when the context was invalidated during creation', async () => {
+    const ctx = new ContentScriptContext('shadow-test');
+    contexts.push(ctx);
+    const onMount = vi.fn((container: HTMLElement) => container);
+    const pending = createShadowSurfaceUi(ctx, { name: 'aie-shadow-test', anchor: '#auto-anchor', css: CSS, onMount });
+    ctx.abort();
+    const ui = await pending;
+    ui.autoMount();
+    const anchor = document.createElement('div');
+    anchor.id = 'auto-anchor';
+    document.body.append(anchor);
+    await settle();
+    expect(onMount).not.toHaveBeenCalled();
+    expect(ui.shadowHost.isConnected).toBe(false);
+  });
+
+  it('stops auto-mounting once the context is invalidated', async () => {
+    const ctx = new ContentScriptContext('shadow-test');
+    contexts.push(ctx);
+    const onMount = vi.fn((container: HTMLElement) => container);
+    const onRemove = vi.fn();
+    const anchor = document.createElement('div');
+    anchor.id = 'auto-anchor';
+    document.body.append(anchor);
+    const ui = await createShadowSurfaceUi(ctx, {
+      name: 'aie-shadow-test',
+      anchor: '#auto-anchor',
+      css: CSS,
+      onMount,
+      onRemove,
+    });
+    ui.autoMount();
+    await settle();
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    ctx.abort();
+    expect(ui.shadowHost.isConnected).toBe(false);
+    expect(onRemove).toHaveBeenCalledTimes(1);
+
+    anchor.remove();
+    await settle();
+    document.body.append(anchor);
+    await settle();
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(ui.shadowHost.isConnected).toBe(false);
+  });
 });
