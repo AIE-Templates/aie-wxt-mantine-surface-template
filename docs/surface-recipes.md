@@ -50,7 +50,7 @@ To verify in a real browser, enable the accessory in the existing content entryp
 
 The Echo example is split into `src/core/rpc/echo/contract.ts` and `impl.ts`. UI imports `getEchoService` from the contract; only the background imports `registerEchoService` from the implementation. Do not re-export the implementation through a client barrel. Type-only imports may describe services without bundling their runtime dependencies.
 
-The existing ESLint config protects this narrow template RPC boundary. It does not prescribe the layout of application services, and its import-pattern checks are not a complete transitive dependency analysis. No CI or bundle-budget policy is added.
+The existing ESLint config protects this narrow template RPC boundary. It does not prescribe the layout of application services, and its import-pattern checks are not a complete transitive dependency analysis. This boundary does not impose an application bundle-size budget.
 
 ## Separate DOM work from UI, and choose which frames need it
 

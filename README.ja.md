@@ -16,7 +16,7 @@
 
 本テンプレートは完全なCSSの分離を保証します。拡張機能のスタイル設定がホストページに影響を与えることはなく、またホストページのCSSが拡張機能に干渉することもありません。
 
-**技術スタック:** WXT 0.20、`@webext-core` (メッセージングおよびプロキシサービス)、Mantine 9.3 (ネイティブCSS変数のみを使用し、Emotionには非依存)、Tailwind 4 (厳密な名前空間による分離)、および CSS Modules。
+**技術スタック:** WXT 0.21、`@webext-core` (メッセージングおよびプロキシサービス)、Mantine 9.3 (ネイティブCSS変数のみを使用し、Emotionには非依存)、Tailwind 4 (厳密な名前空間による分離)、および CSS Modules。
 
 ## このテンプレートを選ぶ理由
 
@@ -33,6 +33,10 @@
 
 ## 1. はじめに
 
+Node.js 22.12+ と pnpm 10.7.1 が必要です。WXT 0.21 は Vite 8 を使用し、ブラウザーの自動起動には明示的な `web-ext` 依存関係を使用します。生成される TypeScript 設定では新しい厳密なチェックを維持します。
+
+Content エントリーは `cssInjectionMode: 'manual'` を使用し、`virtual:surface-css` を `createShadowSurfaceUi` に渡します。ビルドプラグインは CSS Modules を含む処理済み CSS 全体をスクリプトに埋め込み、`chrome-extension://` スタイルシートへのリクエストを避けます。通常の CSS import を維持し、モジュールスタイルの別リストは不要です。開発モードでも WXT は各 content エントリーを個別にビルドします。出力 CSS は監査用で、ホストページには読み込まれません。`pnpm audit:surface` または `pnpm audit:surface:firefox` で埋め込み CSS と出力ファイルの一致を確認します。ドキュメントサーフェスは通常のスタイルシート読み込みを維持します。
+
 ```bash
 pnpm install
 pnpm dev                 # Chrome: 拡張機能を読み込んだ状態の開発用ブラウザを起動します
@@ -47,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **Manifest の構成:** `wxt.config.ts` 内の `manifest` 関数にて `name` と `permissions` を調整してください。実装は Manifest V3 (MV3) に準拠して行います。Firefox向けのMV2へのダウングレードは、ビルド時にWXTが自動的に処理します。
 3. **拡張機能IDの固定 (任意):** `.env.example` を `.env` にコピーし、`WXT_EXTENSION_KEY` を設定します。これにより、環境変数を通じてマニフェストの `key` が安全に注入されます。ビルド出力に組み込まれるのは `WXT_` または `VITE_` で始まる環境変数のみです。機密情報はバージョン管理対象外の `.env` で厳重に管理してください。
 4. **UIの追加:** `src/entrypoints/` 配下の各エントリーポイントは、`src/react-app/apps/` にあるReactアプリケーションをマウントする役割のみを担います。新しい画面を追加する場合は、既存のアプリディレクトリを複製し、対応するエントリーポイントを設定してください。
-5. **コンテンツスクリプトのスコープ制限:** デモ用のコンテンツスクリプトはすべての `http`/`https` ページにマッチし（`src/entrypoints/content/index.tsx` の `matches`）、コンテンツスクリプトはコード分割できないため、各ページに Mantine + React のフルバンドル（約 550 kB の JS + 260 kB の CSS）が注入されます。デモとしては問題ありませんが、実際の製品では `matches` を対象サイトに絞り込むか、広いマッチのままマウントを遅延させてください（ユーザー操作時に動的 import する）。広範なホスト権限はストア審査でも追加の精査対象になります。
+5. **コンテンツスクリプトのスコープ制限:** デモ用のコンテンツスクリプトはすべての `http`/`https` ページにマッチし（`src/entrypoints/content/index.tsx` の `matches`）、コンテンツスクリプトはコード分割できないため、各ページに Mantine + React のフルバンドル（CSS を含む約 802 kB の JS）が注入されます。デモとしては問題ありませんが、実際の製品では `matches` を対象サイトに絞り込むか、広いマッチのままマウントを遅延させてください（ユーザー操作時に動的 import する）。広範なホスト権限はストア審査でも追加の精査対象になります。
 
 ### ビルドとデプロイ
 

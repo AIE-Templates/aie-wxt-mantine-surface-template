@@ -19,10 +19,10 @@ To ensure the extension functions correctly and avoids conflicts with host pages
 7. **Namespace Prefix:** `PROJECT_PREFIX` has a single source of truth in `prefix.cjs` (repo root). `src/constants` re-exports it, and `postcss.config.cjs` and `scripts/audit-css-vars.mjs` read it directly, so they all follow one literal. The only place that still mirrors the prefix by hand is `global.css` (CSS can't import) — change it there too. `pnpm test` guards that mirror: the `Z_INDEX` suite fails loudly if `global.css` drifts from the prefix.
 
 ## Testing Changes
-- Run `pnpm compile && pnpm lint && pnpm test && pnpm build && pnpm audit:css` before committing.
+- Run `pnpm compile && pnpm lint && pnpm test && pnpm build && pnpm audit:css && pnpm audit:ascii && pnpm audit:surface` before committing.
 - `pnpm test` executes Vitest tests (using happy-dom and WXT's `fakeBrowser`) to verify core logic, event isolation, and state management.
 - For tests that require a layout engine (like font-size clamping or hit-testing floating layers), perform manual testing in a real browser.
-- **Manual Testing:** Run a local server (`python3 -m http.server -d test-pages 8787`) and open `tw3-host.html`. Test the UI while the browser window is in the foreground, as backgrounding the window can pause animations and cause false negatives for floating components. For strict host-CSP verification, open `csp-strict-host.html` (a fully inline-free page with `script-src 'self'; style-src 'self'; style-src-attr 'none'`) against a `pnpm build` output and confirm the surface, satellites, modals and color-scheme toggle all render without mutating the host `<head>`.
+- **Manual Testing:** Run a local server (`python3 -m http.server -d test-pages 8787`) and open `tw3-host.html`. Test the UI while the browser window is in the foreground, as backgrounding the window can pause animations and cause false negatives for floating components. For strict host-CSP verification, open `csp-strict-host.html` (a fully inline-free page with `script-src 'self'; style-src 'self'; style-src-attr 'none'`) against a `pnpm build` output and confirm the surface, satellites, modals and color-scheme toggle all render without adding unscoped host styles. WXT's single namespaced `@property` registration style is expected; theme changes must not add transition styles.
 - When verifying visual correctness, use `elementsFromPoint` and check computed values, rather than just inspecting DOM presence.
 
 ## Important Files
@@ -38,3 +38,11 @@ To ensure the extension functions correctly and avoids conflicts with host pages
 - External `ColorSchemeSource` values are supported without loading host detection. `src/surface/addons/host-scheme.ts` is an opt-in accessory only.
 - RPC clients import `contract.ts`; registration and implementation stay in `impl.ts`, imported by background.
 - See `docs/surface-recipes.md` for frame scope and WXT lifecycle examples.
+
+## WXT 0.21 and bundled surface CSS
+
+- Use Node.js 22.12+; `web-ext` is an explicit development dependency. Keep the generated strict TypeScript options enabled.
+- WXT now mounts into a div, not a nested html/head/body document. Do not depend on the old structure.
+- Content entries use `cssInjectionMode: 'manual'`, import `virtual:surface-css`, and pass it as the `css` surface option. Normal global and CSS Module imports are collected automatically by `vite-plugins/inline-surface-css.ts`. Do not fetch public extension stylesheets.
+- Keep the emitted CSS audit asset; `audit:surface` checks that exactly this CSS is embedded in the JS and absent from manifest injection/resource declarations. Run Chrome and Firefox build/audit variants.
+- Use `wxt/testing/vitest-plugin` and `wxt/testing/fake-browser` instead of the removed `wxt/testing` barrel.

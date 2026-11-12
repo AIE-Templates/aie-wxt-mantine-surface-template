@@ -177,9 +177,9 @@ it('preserves application tokens and virtual colors while surface defaults win',
   expect(theme.primaryShade).toBe(5);
   expect(theme.fontFamily).toBe('Example Sans');
   expect(theme.scale).toBe(1.6);
-  expect(theme.components.Portal.defaultProps.target).toBe(env.portalTarget);
-  expect(theme.components.Modal.defaultProps.lockScroll).toBe(false);
-  expect(theme.components.Modal.defaultProps.centered).toBe(true);
+  expect(theme.components.Portal!.defaultProps.target).toBe(env.portalTarget);
+  expect(theme.components.Modal!.defaultProps.lockScroll).toBe(false);
+  expect(theme.components.Modal!.defaultProps.centered).toBe(true);
   view.rerender(app('#ff0000'));
   expect(theme.primaryColor).toBe('primary');
   expect(theme.colors.primary).toHaveLength(10);

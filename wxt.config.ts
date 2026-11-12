@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { defineConfig, type WxtViteConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
-import toUtf8 from './vite-plugins/to-utf8';
 import checkPrefixSync from './vite-plugins/check-prefix-sync';
+import inlineSurfaceCss from './vite-plugins/inline-surface-css';
+import toUtf8 from './vite-plugins/to-utf8';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -14,7 +15,7 @@ export default defineConfig({
       // script as non-UTF-8 once the bundle contains CJK/emoji (wxt#353).
       // check-prefix-sync warns (dev) / fails (build) if global.css drifts from
       // PROJECT_PREFIX — the one prefix mirror CSS can't import.
-      plugins: [tailwindcss(), toUtf8(), checkPrefixSync()],
+      plugins: [tailwindcss(), inlineSurfaceCss(), toUtf8(), checkPrefixSync()],
       css: {
         preprocessorOptions: {
           scss: {

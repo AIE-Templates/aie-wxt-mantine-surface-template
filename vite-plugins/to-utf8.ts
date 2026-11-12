@@ -62,8 +62,7 @@ export default function toUtf8(): PluginOption {
   return {
     name: 'to-utf8',
     generateBundle(_options, bundle) {
-      for (const fileName in bundle) {
-        const asset = bundle[fileName];
+      for (const asset of Object.values(bundle)) {
         if (asset.type === 'chunk' && HAS_NON_ASCII.test(asset.code)) {
           asset.code = escapeNonAscii(asset.code);
         }

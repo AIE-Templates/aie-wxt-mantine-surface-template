@@ -31,7 +31,9 @@ function normalizeViaCanvas(value: string): Rgba | null {
     colorCtx.fillRect(0, 0, 1, 1);
     const data = colorCtx.getImageData(0, 0, 1, 1)?.data;
     if (!data) return null;
-    return { r: data[0], g: data[1], b: data[2], a: data[3] / 255 };
+    const [r, g, b, a] = data;
+    if (r === undefined || g === undefined || b === undefined || a === undefined) return null;
+    return { r, g, b, a: a / 255 };
   } catch {
     return null; // no real canvas (test DOMs) → treat as unpaintable, skip
   }
