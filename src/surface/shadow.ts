@@ -14,8 +14,9 @@
  */
 
 import { createShadowRootUi } from '#imports';
-import { SURFACE_ROOT_CLASS } from '@/constants';
+import { PROJECT_PREFIX, SURFACE_ROOT_CLASS } from '@/constants';
 import type { ColorSchemeStrategy, SurfaceEnv } from './defs';
+import { trapModalFocus } from './focus-trap';
 import { releaseSatellites } from './satellite';
 
 type ShadowRootUiCtx = Parameters<typeof createShadowRootUi>[0];
@@ -49,21 +50,26 @@ export interface ShadowSurfaceOptions<TMounted> {
  * rem resolves against the host page's root font size even inside shadow
  * DOM. Compensate via Mantine's `theme.scale`.
  *
- * Measured with a probe element instead of reading
+ * Measured with a probe instead of reading
  * `getComputedStyle(documentElement).fontSize`: the browser's minimum-font-
  * size setting can clamp the root's COMPUTED value (e.g. report 12px on a
- * `font-size: 62.5%` page) while rem still resolves against the true 10px —
- * the probe observes what rem actually resolves to.
+ * `font-size: 62.5%` page) while rem still resolves against the true 10px.
+ * The probe is a `width: 1rem` element inside its own closed shadow root, so
+ * no host rule (even `div { font-size: … !important }`) can restyle it, and
+ * its computed width is exactly what 1rem resolves to.
  */
 // Internal to shadow-surface creation; not part of the public API.
 function computeHostRemScale(): number {
   // document_start scripts may run before documentElement exists.
   const parent = document.documentElement ?? document.body ?? document.head;
   if (!parent) return 1;
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:absolute;visibility:hidden;font-size:1rem;';
+  const probe = document.createElement(`${PROJECT_PREFIX}-rem-probe`);
+  probe.style.cssText = 'position:absolute;visibility:hidden;';
+  const ruler = document.createElement('div');
+  ruler.style.cssText = 'width:1rem;';
+  probe.attachShadow({ mode: 'closed' }).append(ruler);
   parent.appendChild(probe);
-  const remPx = Number.parseFloat(window.getComputedStyle(probe).fontSize);
+  const remPx = Number.parseFloat(window.getComputedStyle(ruler).width);
   probe.remove();
   if (!Number.isFinite(remPx) || remPx <= 0) return 1;
   return 16 / remPx;
@@ -102,7 +108,7 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
   // without remove() reuses the app instead of starting a second one.
   let current: { rootElement: HTMLElement; shadowRoot: ShadowRoot; mounted: TMounted } | undefined;
 
-  return createShadowRootUi<TMounted>(ctx, {
+  const ui = await createShadowRootUi<TMounted>(ctx, {
     name: options.name,
     position: options.position ?? 'overlay',
     anchor: options.anchor ?? 'body',
@@ -122,6 +128,8 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
       const rootElement = document.createElement('div');
       rootElement.classList.add(SURFACE_ROOT_CLASS);
       container.append(rootElement);
+      // Keyboard isolation hides Tab from Mantine's document-level focus trap.
+      trapModalFocus(rootElement);
 
       const env: SurfaceEnv = {
         kind: 'shadow',
@@ -142,4 +150,12 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
       options.onRemove?.(mounted);
     },
   });
+  // WXT removes the UI when the context is invalidated, but only if that
+  // happens after creation; a context that died during the await above would
+  // otherwise get a UI nothing ever removes.
+  const mount = ui.mount;
+  ui.mount = () => {
+    if (!ctx.isInvalid) mount();
+  };
+  return ui;
 }

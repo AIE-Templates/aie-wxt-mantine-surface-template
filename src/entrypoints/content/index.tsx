@@ -17,6 +17,7 @@ export default defineContentScript({
         void mounted?.then((root) => root.unmount());
       },
     });
+    if (ctx.isInvalid) return;
     ui.mount();
   },
 });

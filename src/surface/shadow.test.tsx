@@ -210,3 +210,16 @@ it('keeps repeated host <style>s at their own cascade position in satellites', a
   expect(new Set(probeSheets).size).toBe(3);
   view.unmount();
 });
+
+it('does not mount when the context was invalidated during creation', async () => {
+  const ctx = new ContentScriptContext('shadow-test');
+  contexts.push(ctx);
+  const onMount = vi.fn((container: HTMLElement) => container);
+  const onRemove = vi.fn();
+  const pending = createShadowSurfaceUi(ctx, { name: 'aie-shadow-test', css: CSS, onMount, onRemove });
+  ctx.abort();
+  const ui = await pending;
+  ui.mount();
+  expect(onMount).not.toHaveBeenCalled();
+  expect(ui.shadowHost.isConnected).toBe(false);
+});
