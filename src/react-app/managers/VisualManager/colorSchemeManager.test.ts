@@ -91,4 +91,20 @@ describe('extStorageColorSchemeManager', () => {
     expect(mgr.get('light')).toBe('dark');
     read.mockRestore();
   });
+
+  it('clear during the catch-up read wins over the read', async () => {
+    let finish: (value: 'dark') => void = () => {};
+    const read = vi
+      .spyOn(visualColorSchemeStorage, 'getValue')
+      .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const mgr = extStorageColorSchemeManager('dark');
+    const onUpdate = vi.fn();
+    mgr.subscribe(onUpdate);
+    mgr.clear();
+    finish('dark');
+    await flush();
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(mgr.get('light')).toBe('light');
+    read.mockRestore();
+  });
 });

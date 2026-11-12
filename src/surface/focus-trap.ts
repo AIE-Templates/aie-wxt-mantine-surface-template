@@ -7,6 +7,11 @@
  * host-page hotkeys stay quiet. This listener runs inside the shadow tree,
  * before that boundary, and keeps Tab / Shift+Tab within the topmost open
  * `[aria-modal="true"]` element (Mantine Modal and Drawer content).
+ *
+ * Like Mantine's own trap it wraps at the dialog's ends. Focus outside the
+ * dialog is pulled back only when it sits BEFORE the dialog in the surface
+ * (the UI behind the modal); layers portaled after it — a Popover or Menu
+ * opened from inside the dialog — keep normal Tab order.
  */
 
 const TABBABLE = 'a[href], button, input, select, textarea, [tabindex]';
@@ -36,13 +41,15 @@ export function trapModalFocus(root: HTMLElement): void {
       return;
     }
     const active = (root.getRootNode() as Document | ShadowRoot).activeElement;
-    const inside = active !== null && dialog.contains(active);
-    if (!inside || (event.shiftKey && (active === first || active === dialog))) {
+    if (active === null || !dialog.contains(active)) {
+      const behind = active === null || !!(dialog.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (behind) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    } else if (event.shiftKey ? active === first || active === dialog : active === last) {
       event.preventDefault();
       (event.shiftKey ? last : first).focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
     }
   });
 }

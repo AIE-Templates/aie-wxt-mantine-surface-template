@@ -18,7 +18,8 @@ function setup() {
       <button id="first">first</button>
       <button disabled>disabled</button>
       <button id="last">last</button>
-    </section>`;
+    </section>
+    <div class="popover"><input id="pop-a"><input id="pop-b"></div>`;
   trapModalFocus(root);
   // Keyboard isolation, as the surface applies it at the shadow root.
   shadow.addEventListener('keydown', (event) => event.stopPropagation());
@@ -70,4 +71,11 @@ it('does nothing without an open modal', () => {
   shadow.querySelector('[aria-modal]')!.remove();
   byId('outside').focus();
   expect(tab().defaultPrevented).toBe(false);
+});
+
+it('leaves Tab alone in a layer portaled after the dialog (a popover opened from it)', () => {
+  const { shadow, byId, tab } = setup();
+  byId('pop-a').focus();
+  expect(tab().defaultPrevented).toBe(false);
+  expect(shadow.activeElement).toBe(byId('pop-a'));
 });

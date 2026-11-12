@@ -57,6 +57,7 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
       unwatch = undefined;
     },
     clear: () => {
+      revision++;
       currentColorScheme = undefined;
       visualColorSchemeStorage.removeValue().catch((error) => {
         console.warn('[VisualManager] failed to clear color scheme', error);
