@@ -274,3 +274,21 @@ describe('autoMount and context invalidation', () => {
     expect(ui.shadowHost.isConnected).toBe(false);
   });
 });
+
+it('hands Tab to the document keydown listeners of this context while keeping it from the host', async () => {
+  const { ui, onMount } = await surface();
+  ui.mount();
+  const onDocument = vi.fn();
+  const onWindow = vi.fn();
+  document.addEventListener('keydown', onDocument);
+  window.addEventListener('keydown', onWindow);
+  try {
+    const root = onMount.mock.calls[0]![0];
+    root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, composed: true }));
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    expect(onWindow).not.toHaveBeenCalled();
+  } finally {
+    document.removeEventListener('keydown', onDocument);
+    window.removeEventListener('keydown', onWindow);
+  }
+});

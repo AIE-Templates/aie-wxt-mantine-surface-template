@@ -16,7 +16,8 @@
 import { createShadowRootUi } from '#imports';
 import { PROJECT_PREFIX, SURFACE_ROOT_CLASS } from '@/constants';
 import type { ColorSchemeStrategy, SurfaceEnv } from './defs';
-import { trapModalFocus } from './focus-trap';
+import { relayTabKeydown } from './focus-trap';
+import { resolveIsolatedEvents } from './isolate-events';
 import { releaseSatellites } from './satellite';
 
 type ShadowRootUiCtx = Parameters<typeof createShadowRootUi>[0];
@@ -129,7 +130,7 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
       rootElement.classList.add(SURFACE_ROOT_CLASS);
       container.append(rootElement);
       // Keyboard isolation hides Tab from Mantine's document-level focus trap.
-      trapModalFocus(rootElement);
+      if (resolveIsolatedEvents(options.isolateEvents).includes('keydown')) relayTabKeydown(shadowRoot);
 
       const env: SurfaceEnv = {
         kind: 'shadow',

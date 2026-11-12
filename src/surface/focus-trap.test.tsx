@@ -1,0 +1,264 @@
+import { useState, type ReactNode } from 'react';
+import { FocusTrap, MantineProvider, Menu, Modal, Popover } from '@mantine/core';
+import { act, cleanup, render } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { SURFACE_ROOT_CLASS } from '@/constants';
+import { SurfaceProvider } from './context';
+import type { SurfaceEnv } from './defs';
+import { relayTabKeydown } from './focus-trap';
+import { createSatellite, SatelliteOutlet } from './satellite';
+
+/**
+ * Real Mantine components inside an isolating shadow root: the expectations
+ * are Mantine's own FocusTrap behaviour (use-focus-trap/scope-tab), which the
+ * relay must reproduce without re-implementing it.
+ */
+
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
+
+function shadowRootWithIsolation(isolate = true) {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const shadowRoot = host.attachShadow({ mode: 'open' });
+  const rootElement = document.createElement('div');
+  rootElement.className = SURFACE_ROOT_CLASS;
+  shadowRoot.append(rootElement);
+  if (isolate) {
+    // As WXT / isolated-element applies it for the host surface.
+    shadowRoot.addEventListener('keydown', (event) => event.stopPropagation());
+    relayTabKeydown(shadowRoot);
+  }
+  return { shadowRoot, rootElement };
+}
+
+/** Press Tab on whatever holds focus in `shadowRoot`; returns the keydown. */
+function tab(shadowRoot: ShadowRoot, shiftKey = false) {
+  const target = shadowRoot.activeElement ?? shadowRoot.firstElementChild!;
+  const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, composed: true, cancelable: true });
+  target.dispatchEvent(event);
+  return event;
+}
+
+/** Let useFocusTrap's deferred initial focus run. */
+const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+async function mount(ui: ReactNode, { isolate = true } = {}) {
+  const { shadowRoot, rootElement } = shadowRootWithIsolation(isolate);
+  const env: SurfaceEnv = {
+    kind: 'shadow',
+    shadowRoot,
+    rootElement,
+    portalTarget: rootElement,
+    scale: 1,
+    colorSchemeStrategy: 'extension',
+  };
+  render(
+    <SurfaceProvider env={env}>
+      <MantineProvider
+        env="test"
+        cssVariablesSelector={`.${SURFACE_ROOT_CLASS}`}
+        getRootElement={() => rootElement}
+        theme={{ components: { Portal: { defaultProps: { target: rootElement } } } }}
+      >
+        {ui}
+        <SatelliteOutlet />
+      </MantineProvider>
+    </SurfaceProvider>,
+    { container: rootElement }
+  );
+  await settle();
+  const byId = (id: string) => shadowRoot.getElementById(id) as HTMLElement;
+  return { shadowRoot, byId, tab: (shiftKey = false) => tab(shadowRoot, shiftKey) };
+}
+
+const modal = (trapFocus?: boolean) => (
+  <>
+    <button id="behind">behind</button>
+    <Modal opened onClose={() => {}} withCloseButton={false} trapFocus={trapFocus}>
+      <button id="first">first</button>
+      <button disabled>disabled</button>
+      <button id="last">last</button>
+    </Modal>
+  </>
+);
+
+it('wraps Tab and Shift+Tab at the ends of a Modal', async () => {
+  const { shadowRoot, byId, tab } = await mount(modal());
+  expect(shadowRoot.activeElement).toBe(byId('first'));
+  expect(tab().defaultPrevented).toBe(false);
+
+  byId('last').focus();
+  expect(tab().defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(byId('first'));
+
+  expect(tab(true).defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(byId('last'));
+});
+
+it('does not trap a Modal with trapFocus={false}', async () => {
+  const { shadowRoot, byId, tab } = await mount(modal(false));
+  byId('last').focus();
+  expect(tab().defaultPrevented).toBe(false);
+  expect(shadowRoot.activeElement).toBe(byId('last'));
+});
+
+it('does not pull focus back from behind the Modal (Mantine does not)', async () => {
+  const { shadowRoot, byId, tab } = await mount(modal());
+  byId('behind').focus();
+  expect(tab().defaultPrevented).toBe(false);
+  expect(shadowRoot.activeElement).toBe(byId('behind'));
+});
+
+const popover = (trapFocus: boolean, withinPortal = true) => (
+  <Popover opened trapFocus={trapFocus} withinPortal={withinPortal}>
+    <Popover.Target>
+      <button id="target">target</button>
+    </Popover.Target>
+    <Popover.Dropdown>
+      <input id="pop-a" />
+      <input id="pop-b" />
+    </Popover.Dropdown>
+  </Popover>
+);
+
+it('traps a Popover only with trapFocus', async () => {
+  const trapped = await mount(popover(true));
+  expect(trapped.shadowRoot.activeElement).toBe(trapped.byId('pop-a'));
+  trapped.byId('pop-b').focus();
+  expect(trapped.tab().defaultPrevented).toBe(true);
+  expect(trapped.shadowRoot.activeElement).toBe(trapped.byId('pop-a'));
+  cleanup();
+
+  const free = await mount(popover(false));
+  free.byId('pop-b').focus();
+  expect(free.tab().defaultPrevented).toBe(false);
+  expect(free.shadowRoot.activeElement).toBe(free.byId('pop-b'));
+});
+
+it('keeps Tab inside an open Menu, as Mantine does (its items are not tabbable)', async () => {
+  const { shadowRoot, tab } = await mount(
+    <Menu opened>
+      <Menu.Target>
+        <button>menu</button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item id="item">item</Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+  const focused = shadowRoot.activeElement;
+  expect(focused?.closest('[role="menu"]')).not.toBeNull();
+  expect(tab().defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(focused);
+});
+
+it('treats a radio in the final group as the final stop (scopeTab radio rule)', async () => {
+  const { shadowRoot, byId, tab } = await mount(
+    <FocusTrap>
+      <div>
+        <button id="first">first</button>
+        <input type="radio" name="group" id="radio-a" />
+        <input type="radio" name="group" id="radio-b" />
+      </div>
+    </FocusTrap>
+  );
+  byId('radio-a').focus();
+  expect(tab().defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(byId('first'));
+});
+
+it('wraps inside a trapFocus Popover opened from a Modal, not inside the Modal', async () => {
+  const { shadowRoot, byId, tab } = await mount(
+    <Modal opened onClose={() => {}} withCloseButton={false}>
+      <button id="first">first</button>
+      {popover(true)}
+    </Modal>
+  );
+  // Both traps are active and both listeners run, in Mantine's registration
+  // order: the Popover's wraps first, so the Modal's no longer sees focus on
+  // its own last tabbable (which is also `pop-b`). Reversed, focus would land
+  // on `first`.
+  byId('pop-b').focus();
+  expect(tab().defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(byId('pop-a'));
+  expect(tab(true).defaultPrevented).toBe(true);
+  expect(shadowRoot.activeElement).toBe(byId('pop-b'));
+});
+
+it('follows traps as they activate and deactivate', async () => {
+  let setOpened!: (opened: boolean) => void;
+  function Toggle() {
+    const [opened, set] = useState(false);
+    setOpened = set;
+    return (
+      <Modal opened={opened} onClose={() => {}} withCloseButton={false} keepMounted>
+        <button id="only">only</button>
+      </Modal>
+    );
+  }
+  const { byId, tab } = await mount(<Toggle />);
+  act(() => setOpened(true));
+  await settle();
+  byId('only').focus();
+  expect(tab().defaultPrevented).toBe(true);
+  act(() => setOpened(false));
+  await settle();
+  expect(tab().defaultPrevented).toBe(false);
+});
+
+it('traps content rendered in a satellite', async () => {
+  const anchor = document.createElement('p');
+  document.body.append(anchor);
+  const satellite = createSatellite(anchor, popover(true, false));
+  try {
+    await mount(null);
+    const shadowRoot = satellite.hostElement.shadowRoot!;
+    const last = shadowRoot.getElementById('pop-b')!;
+    last.focus();
+    expect(tab(shadowRoot).defaultPrevented).toBe(true);
+    expect(shadowRoot.activeElement).toBe(shadowRoot.getElementById('pop-a'));
+  } finally {
+    satellite.destroy();
+  }
+});
+
+it('relays only Tab, once, and lets nothing reach the host page', async () => {
+  const onWindow = vi.fn();
+  const onDocument = vi.fn();
+  window.addEventListener('keydown', onWindow);
+  const { byId, tab } = await mount(<button id="plain">plain</button>);
+  document.addEventListener('keydown', onDocument);
+  try {
+    byId('plain').focus();
+    tab();
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    byId('plain').dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true, composed: true }));
+    expect(onDocument).toHaveBeenCalledTimes(1);
+    expect(onWindow).not.toHaveBeenCalled();
+
+    document.removeEventListener('keydown', onDocument);
+    tab();
+    expect(onDocument).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener('keydown', onWindow);
+    document.removeEventListener('keydown', onDocument);
+  }
+});
+
+it('does not double-deliver where keydown is not isolated', async () => {
+  const onDocument = vi.fn();
+  // Wrap document.addEventListener first, as an isolating surface would have.
+  shadowRootWithIsolation();
+  const { byId, tab } = await mount(<button id="plain">plain</button>, { isolate: false });
+  document.addEventListener('keydown', onDocument);
+  try {
+    byId('plain').focus();
+    tab();
+    expect(onDocument).toHaveBeenCalledTimes(1);
+  } finally {
+    document.removeEventListener('keydown', onDocument);
+  }
+});

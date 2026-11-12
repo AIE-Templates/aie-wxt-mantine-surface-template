@@ -1,55 +1,79 @@
 /**
  * @module surface/focus-trap
  *
- * Tab cycling for modal dialogs inside a shadow surface. Mantine's
- * useFocusTrap listens for `keydown` on `document`, which never sees keys
- * typed in the surface: keyboard isolation stops them at the shadow root so
- * host-page hotkeys stay quiet. This listener runs inside the shadow tree,
- * before that boundary, and keeps Tab / Shift+Tab within the topmost open
- * `[aria-modal="true"]` element (Mantine Modal and Drawer content).
+ * Keeps Mantine's own focus handling working behind keyboard isolation.
  *
- * Like Mantine's own trap it wraps at the dialog's ends. Focus outside the
- * dialog is pulled back only when it sits BEFORE the dialog in the surface
- * (the UI behind the modal); layers portaled after it — a Popover or Menu
- * opened from inside the dialog — keep normal Tab order.
+ * Mantine's `useFocusTrap` (Modal, Drawer, trapFocus Popover/Menu, FocusTrap)
+ * and `useFocusReturn` listen for `keydown` on `document`. Keys typed in a
+ * shadow surface or a satellite never get there: isolation stops them at the
+ * shadow root so host-page hotkeys stay quiet.
+ *
+ * Rather than re-implement the trap (which components trap, when, and how Tab
+ * wraps are private to Mantine and carry no DOM marker), the Tab keydown is
+ * handed to the very listeners Mantine registered:
+ *
+ * - `document.addEventListener` / `removeEventListener` are wrapped on the
+ *   `document` object of THIS JS context (the content script's isolated
+ *   world; the host page's own `document` wrapper and listeners are
+ *   untouched). Bubble-phase `keydown` registrations are mirrored onto a
+ *   private, detached element, so order, `once`, `signal` and removal follow the
+ *   browser's own bookkeeping.
+ * - At an isolating shadow root, a copy of each Tab keydown is dispatched on
+ *   that private target, and `preventDefault()` is carried back to the real
+ *   event.
+ *
+ * So exactly the traps Mantine considers active run, with Mantine's
+ * algorithm, in Mantine's order - and the host page still sees nothing.
+ *
+ * Limits: only Tab is relayed (other keys stay fully isolated); listeners get
+ * a copy whose `target` is the private element and `isTrusted` is false;
+ * capture-phase document listeners are not mirrored (they already run before
+ * the event enters the shadow tree).
  */
 
-const TABBABLE = 'a[href], button, input, select, textarea, [tabindex]';
+type Listener = EventListenerOrEventListenerObject;
+type Options = boolean | AddEventListenerOptions | undefined;
 
-const visible = (element: Element) => element.checkVisibility?.() ?? true;
+let mirror: EventTarget | undefined;
 
-function tabbables(container: Element): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>(TABBABLE)].filter(
-    (element) =>
-      element.tabIndex >= 0 &&
-      !element.matches(':disabled') &&
-      !(element instanceof HTMLInputElement && element.type === 'hidden') &&
-      visible(element)
-  );
+const isCapture = (options: Options) => (typeof options === 'object' ? !!options.capture : !!options);
+
+function mirrorDocumentKeydown(): EventTarget {
+  if (mirror) return mirror;
+  // A detached element, not `new EventTarget()`: in a Firefox content script
+  // listeners on a bare EventTarget are never called (verified in Firefox 157).
+  const target = (mirror = document.createElement('div'));
+  const add = document.addEventListener.bind(document);
+  const remove = document.removeEventListener.bind(document);
+  document.addEventListener = (type: string, listener: Listener, options?: Options) => {
+    add(type, listener, options);
+    if (type === 'keydown' && !isCapture(options)) target.addEventListener(type, listener, options);
+  };
+  document.removeEventListener = (type: string, listener: Listener, options?: Options) => {
+    remove(type, listener, options);
+    if (type === 'keydown' && !isCapture(options)) target.removeEventListener(type, listener, options);
+  };
+  return target;
 }
 
-export function trapModalFocus(root: HTMLElement): void {
-  root.addEventListener('keydown', (event) => {
-    if (event.key !== 'Tab' || event.defaultPrevented) return;
-    const dialog = [...root.querySelectorAll<HTMLElement>('[aria-modal="true"]')].filter(visible).at(-1);
-    if (!dialog) return;
-    const items = tabbables(dialog);
-    const first = items[0];
-    const last = items.at(-1);
-    if (!first || !last) {
-      event.preventDefault();
-      return;
-    }
-    const active = (root.getRootNode() as Document | ShadowRoot).activeElement;
-    if (active === null || !dialog.contains(active)) {
-      const behind = active === null || !!(dialog.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_PRECEDING);
-      if (behind) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      }
-    } else if (event.shiftKey ? active === first || active === dialog : active === last) {
-      event.preventDefault();
-      (event.shiftKey ? last : first).focus();
-    }
+const relayed = new WeakSet<ShadowRoot>();
+
+/**
+ * Deliver Tab keydowns that reach `shadowRoot` to this context's document
+ * keydown listeners. Call it for shadow roots that stop `keydown` from
+ * propagating, before the UI inside mounts (listeners registered before the
+ * first call are not known). Idempotent per shadow root.
+ */
+export function relayTabKeydown(shadowRoot: ShadowRoot): void {
+  const target = mirrorDocumentKeydown();
+  if (relayed.has(shadowRoot)) return;
+  relayed.add(shadowRoot);
+  shadowRoot.addEventListener('keydown', (event) => {
+    const { key, code, shiftKey, ctrlKey, altKey, metaKey, repeat } = event as KeyboardEvent;
+    if (key !== 'Tab') return;
+    const init = { key, code, shiftKey, ctrlKey, altKey, metaKey, repeat, cancelable: true };
+    const copy = new KeyboardEvent('keydown', init);
+    target.dispatchEvent(copy);
+    if (copy.defaultPrevented) event.preventDefault();
   });
 }
