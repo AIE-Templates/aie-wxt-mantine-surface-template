@@ -56,7 +56,9 @@ export default function inlineSurfaceCss(): Plugin {
         const consumers = Object.values(bundle).filter((item) => item.type === 'chunk' && item.code.includes(MARKER));
         if (consumers.length === 0) {
           if (loaded) {
-            this.error('The surface CSS placeholder was removed from the bundle unexpectedly.');
+            this.error(
+              'virtual:surface-css is imported but its value never reaches the bundle; pass it to the surface or remove the import.'
+            );
           }
           return;
         }

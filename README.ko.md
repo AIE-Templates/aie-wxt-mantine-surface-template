@@ -51,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **Manifest 구성:** `wxt.config.ts` 파일의 `manifest` 함수 내에서 `name`과 `permissions`를 조정하십시오. 코드는 Manifest V3(MV3) 표준을 준수하여 작성해야 하며, WXT가 빌드 시 Firefox를 위한 MV2 다운그레이드를 자동 처리합니다.
 3. **확장 프로그램 ID 고정 (선택 사항):** `.env.example`을 `.env` 파일로 복사하고 `WXT_EXTENSION_KEY`를 설정하십시오. 이를 통해 환경 변수를 이용해 Manifest의 `key`를 안전하게 주입할 수 있습니다. 빌드 산출물에는 `WXT_` 또는 `VITE_` 접두사가 포함된 환경 변수만 포함됩니다. 보안을 위해 민감한 정보는 버전 관리 시스템에 커밋되지 않는 `.env`에 보관하십시오.
 4. **UI 인터페이스 추가:** `src/entrypoints/` 디렉터리 하위의 각 진입점(Entry Point)은 `src/react-app/apps/` 내의 특정 React 애플리케이션을 마운트하는 역할을 수행합니다. 새로운 화면을 추가하려면 기존 앱 디렉터리를 복제하고 해당 진입점을 구성하면 됩니다.
-5. **콘텐츠 스크립트 범위 좁히기:** 데모용 콘텐츠 스크립트는 모든 `http`/`https` 페이지에 매칭되며(`src/entrypoints/content/index.tsx`의 `matches`), 콘텐츠 스크립트는 코드 분할이 불가능하므로 각 페이지에 Mantine + React 전체 번들(CSS를 포함한 약 802 kB JS)이 주입됩니다. 데모로는 문제없지만 실제 제품에서는 `matches`를 실제 대상 사이트로 좁히거나, 넓은 매칭을 유지하되 마운트를 지연시키십시오(사용자 조작 시 동적 import). 광범위한 호스트 권한은 스토어 심사에서 추가 검토 대상이 되기도 합니다.
+5. **콘텐츠 스크립트 범위 좁히기:** 데모용 콘텐츠 스크립트는 모든 `http`/`https` 페이지에 매칭되며(`src/entrypoints/content/index.tsx`의 `matches`), 콘텐츠 스크립트는 코드 분할이 불가능하므로 각 페이지에 Mantine + React 전체 번들(CSS를 포함한 약 800 kB JS)이 주입됩니다. 데모로는 문제없지만 실제 제품에서는 `matches`를 실제 대상 사이트로 좁히거나, 넓은 매칭을 유지하되 마운트를 지연시키십시오(사용자 조작 시 동적 import). 광범위한 호스트 권한은 스토어 심사에서 추가 검토 대상이 되기도 합니다.
 
 ### 빌드 및 배포
 

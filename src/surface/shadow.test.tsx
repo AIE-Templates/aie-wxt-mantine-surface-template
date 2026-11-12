@@ -119,7 +119,9 @@ it('shares the host surface sheet object with satellites across theme changes', 
   const sheetsOf = (handle: typeof first) => handle.hostElement.shadowRoot!.adoptedStyleSheets;
   const hostSheet = ui.shadow.adoptedStyleSheets[0]!;
   const before = [...sheetsOf(first)];
-  expect(before[0]).toBe(hostSheet);
+  // Same cascade order as the host: its <style>s first, the adopted static sheet last.
+  expect(before.at(-1)).toBe(hostSheet);
+  expect(before.indexOf(hostSheet)).toBe(before.length - 1);
   expect([...sheetsOf(second)]).toEqual(before);
   // WXT's :host reset is captured too, so satellite hosts are reset as well.
   const reset = before.find((sheet) => /all:\s*initial/.test(staticText(sheet)));
@@ -128,7 +130,7 @@ it('shares the host surface sheet object with satellites across theme changes', 
   view.rerender(tree('red'));
   await waitFor(() => expect([...sheetsOf(first)]).not.toEqual(before));
   // Only the changed theme-variables style was re-parsed; the rest are the same objects.
-  expect(sheetsOf(first)[0]).toBe(hostSheet);
+  expect(sheetsOf(first).at(-1)).toBe(hostSheet);
   expect(sheetsOf(first)).toContain(reset);
   expect([...sheetsOf(second)]).toEqual([...sheetsOf(first)]);
   view.unmount();

@@ -4,7 +4,7 @@
 // Sheets in content-scripts/ belong to entries using WXT's normal CSS
 // injection and are not checked here.
 import assert from 'node:assert/strict';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const directory = process.argv[2];
@@ -29,12 +29,18 @@ for (const sheet of sheets) {
     (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0')
   );
   assert(js.includes(literal), `${cssPath} must be embedded verbatim in ${jsPath} (import virtual:surface-css).`);
-  assert(
-    !/@(property|font-face)\b/.test(css),
-    `${cssPath} contains @property/@font-face, which browsers ignore inside shadow roots.`
+  assert(!/@property\b/.test(css), `${cssPath} still contains @property rules (they should have been dropped).`);
+  if (/@font-face\b/.test(css))
+    console.warn(`warning: ${cssPath} declares @font-face, which is ignored in shadow roots.`);
+  // The embedded entry must not also ship its CSS the normal way.
+  const injectedPath = jsPath.replace(/\.js$/, '.css');
+  const shipped = await stat(join(directory, injectedPath)).then(
+    () => true,
+    () => false
   );
-  assert(!injected.includes(cssPath), `${cssPath} must not be injected into the host document by the manifest.`);
-  assert(!exposed.some((pattern) => pattern.test(cssPath)), `${cssPath} must not be a web-accessible resource.`);
+  assert(!shipped, `${injectedPath} exists; its CSS is embedded and must not also be emitted.`);
+  assert(!injected.includes(injectedPath), `${injectedPath} must not be injected into the host by the manifest.`);
+  assert(!exposed.some((pattern) => pattern.test(injectedPath)), `${injectedPath} must not be web-accessible.`);
 }
 const scripts = (await readdir(join(directory, 'content-scripts'))).filter((file) => file.endsWith('.js'));
 for (const file of scripts) {

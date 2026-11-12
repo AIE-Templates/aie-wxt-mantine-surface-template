@@ -20,7 +20,7 @@
  * rem compensation) still beat everything layered. Never set `--mantine-*`
  * in unlayered rules: against Mantine's runtime theme-variables <style> the
  * winner depends on the surface (this sheet is adopted after it in shadow
- * surfaces, loaded before it elsewhere) — use theme.ts instead.
+ * surfaces and satellites, loaded before it elsewhere) — use theme.ts instead.
  */
 @layer theme, base, mantine, components, utilities;
 @import '@mantine/core/styles.layer.css';

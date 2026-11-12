@@ -134,11 +134,11 @@ class SatelliteRegistry {
   }
 
   /**
-   * Rebuild the satellites' sheets: the sheets the host surface adopted (its
-   * static CSS, shared as the same CSSStyleSheet objects) followed by every
-   * <style> in the host shadow root — WXT's `:host` reset and the Mantine
+   * Rebuild the satellites' sheets in the host surface's cascade order: every
+   * <style> in the host shadow root (WXT's `:host` reset, the Mantine
    * theme-variables <style> rendered in-tree, plus the static CSS itself where
-   * the host fell back to a <style>. Re-run on theme changes (the variables
+   * the host fell back to a <style>), then the sheets the host adopted (its
+   * static CSS, shared as the same CSSStyleSheet objects). Re-run on theme changes (the variables
    * style content is rewritten in place); <style> sheets are cached by text,
    * so a refresh only parses styles whose content changed.
    *
@@ -164,7 +164,7 @@ class SatelliteRegistry {
           }
           this.parsed.set(text, sheet);
         }
-        this.sheets = [...source.adoptedStyleSheets, ...this.parsed.values()];
+        this.sheets = [...this.parsed.values(), ...source.adoptedStyleSheets];
       } catch (error) {
         // Constructable sheets can be missing or unusable (e.g. restrictive
         // environments) — degrade to per-root <style> clones.
