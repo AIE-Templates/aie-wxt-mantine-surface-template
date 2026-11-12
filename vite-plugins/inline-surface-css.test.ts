@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { build } from 'vite';
-import { afterEach, expect, it } from 'vitest';
-import inlineSurfaceCss, { decodeVlq } from './inline-surface-css';
+import { afterEach, describe, expect, it } from 'vitest';
+import inlineSurfaceCss, { decodeVlq, keepAtRulesInShadow } from './inline-surface-css';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -136,4 +136,28 @@ it('keeps sourcemap columns after the inserted CSS aligned with the source', asy
   expect(hit).toBeDefined();
   const entry = map.sourcesContent![hit!.source]!.split('\n')[hit!.line]!;
   expect(entry.slice(hit!.column)).toMatch(/^"AFTER_TOKEN"/);
+});
+
+describe('keepAtRulesInShadow', () => {
+  const tailwindShape =
+    '@layer properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline))){*,:before,:after,::backdrop{--aie-tw-a:initial;--aie-tw-b:0px}}}' +
+    '.x{color:red}@property --aie-tw-a{syntax:"*";inherits:false}@property --aie-tw-b{syntax:"<length>";inherits:false;initial-value:0}';
+
+  it('drops @property and applies the Tailwind fallback unconditionally', () => {
+    const css = keepAtRulesInShadow(tailwindShape);
+    expect(css).not.toContain('@property');
+    expect(css).not.toContain('@supports');
+    expect(css).toContain('@layer properties{*,:before,:after,::backdrop{--aie-tw-a:initial;--aie-tw-b:0px}}');
+    expect(css).toContain('.x{color:red}');
+  });
+
+  it('refuses to drop a registration the fallback does not cover', () => {
+    expect(() => keepAtRulesInShadow(tailwindShape + '@property --aie-tw-c{syntax:"*";inherits:false}')).toThrow(
+      '--aie-tw-c'
+    );
+  });
+
+  it('leaves CSS without @property untouched', () => {
+    expect(keepAtRulesInShadow('.x{color:red}')).toBe('.x{color:red}');
+  });
 });

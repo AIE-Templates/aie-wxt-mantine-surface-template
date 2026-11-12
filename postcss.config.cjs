@@ -38,8 +38,10 @@ module.exports = {
     // initial values per-element for browsers WITHOUT @property; rewriting it to
     // `:root` makes it inert inside a shadow root (`:root` matches nothing
     // there), breaking those transient vars on ancient browsers. `*` is shadow-
-    // scoped (no host leak) and correct. On modern browsers the @property
-    // registrations supply the initial values regardless, so this block is moot.
+    // scoped (no host leak) and correct. For the shadow content entry,
+    // vite-plugins/inline-surface-css drops the @property rules (WXT would hoist
+    // them into the host <head>) and removes this block's @supports gate, so the
+    // fallback is what supplies the initial values there.
     'postcss-replace': {
       pattern: /(--tw-|:root,:host)/g,
       data: {

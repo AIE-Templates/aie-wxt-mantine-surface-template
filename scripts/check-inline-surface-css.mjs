@@ -28,6 +28,10 @@ for (const sheet of sheets) {
     (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0')
   );
   assert(js.includes(literal), `${cssPath} must be embedded verbatim in ${jsPath} (import virtual:surface-css).`);
+  assert(
+    !/@(property|font-face)\b/.test(css),
+    `${cssPath} contains rules WXT would hoist into the host <head> (@property/@font-face).`
+  );
   assert(!injected.includes(cssPath), `${cssPath} must not be injected into the host document by the manifest.`);
   assert(!exposed.some((pattern) => pattern.test(cssPath)), `${cssPath} must not be a web-accessible resource.`);
 }

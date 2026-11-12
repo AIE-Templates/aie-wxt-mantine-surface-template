@@ -11,7 +11,11 @@
  * operation and sees the real CSS instead of being folded against the marker.
  * The global is never set; content scripts run in an isolated world, so the
  * host page cannot set it either.
+ *
+ * The embedded CSS also drops `@property` registrations (see
+ * keepAtRulesInShadow), so WXT has nothing to hoist into the host <head>.
  */
+import postcss, { type AtRule } from 'postcss';
 import type { Plugin } from 'vite';
 import { escapeNonAscii } from './to-utf8';
 
@@ -58,7 +62,18 @@ export default function inlineSurfaceCss(): Plugin {
         }
         const sheet = sheets[0]!;
         if (sheet.type !== 'asset') this.error('Expected a CSS asset.');
-        const css = typeof sheet.source === 'string' ? sheet.source : new TextDecoder().decode(sheet.source);
+        const raw = typeof sheet.source === 'string' ? sheet.source : new TextDecoder().decode(sheet.source);
+        let css: string;
+        try {
+          css = keepAtRulesInShadow(raw);
+        } catch (error) {
+          this.error(error instanceof Error ? error.message : String(error));
+        }
+        if (/@font-face/.test(css)) {
+          this.warn('@font-face in surface CSS is hoisted into the host document by WXT; load fonts another way.');
+        }
+        // The audit asset must stay identical to what ships in the JS.
+        sheet.source = css;
         // This hook runs after CSS generation and may run after the ASCII
         // plugin, so escape the inserted literal here as well.
         const literal = escapeNonAscii(JSON.stringify(css));
@@ -75,6 +90,45 @@ export default function inlineSurfaceCss(): Plugin {
       },
     },
   };
+}
+
+/**
+ * WXT hoists `@property` rules into the host page's <head> (they have no
+ * effect inside a shadow root). Drop them for the shadow entry and let
+ * Tailwind's own per-element fallback (`@layer properties { @supports (…) {
+ * *, ::before, ::after, ::backdrop { --tw-*: initial } } }`), which it gates
+ * to browsers without `@property`, apply unconditionally instead. The
+ * surface then needs nothing outside its shadow trees, and satellites get the
+ * initial values from the same captured CSS. Fails when the fallback does not
+ * cover every dropped property (e.g. Tailwind changed its output shape).
+ */
+export function keepAtRulesInShadow(css: string): string {
+  const root = postcss.parse(css);
+  const registered: string[] = [];
+  root.walkAtRules('property', (rule) => {
+    registered.push(rule.params.trim());
+    rule.remove();
+  });
+  if (registered.length === 0) return css;
+
+  const covered = new Set<string>();
+  root.walkAtRules('layer', (layer) => {
+    if (layer.params.trim() !== 'properties' || !layer.nodes) return;
+    for (const node of [...layer.nodes]) {
+      if (node.type !== 'atrule' || (node as AtRule).name !== 'supports') continue;
+      node.walkDecls((decl) => {
+        covered.add(decl.prop);
+      });
+      node.replaceWith((node as AtRule).nodes ?? []);
+    }
+  });
+  const missing = registered.filter((name) => !covered.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `Cannot drop @property for ${missing.join(', ')}: no Tailwind \`@layer properties\` fallback sets them.`
+    );
+  }
+  return root.toString();
 }
 
 interface Edit {

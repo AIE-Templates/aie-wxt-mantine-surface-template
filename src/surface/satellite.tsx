@@ -110,8 +110,9 @@ class SatelliteRegistry {
   private styleSource: ShadowRoot | null = null;
   private observer: MutationObserver | null = null;
   private checkScheduled = false;
+  /** Source text of each entry in `sheets`, for reuse across refreshes. */
+  private sheetTexts: string[] = [];
   private useConstructableSheets = supportsConstructableSheets;
-  private refreshToken = 0;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -129,64 +130,53 @@ class SatelliteRegistry {
   setStyleSource(shadowRoot: ShadowRoot) {
     if (this.styleSource === shadowRoot) return;
     this.styleSource = shadowRoot;
-    void this.refreshSheets();
+    this.sheets = [];
+    this.sheetTexts = [];
+    this.refreshSheets();
   }
 
   /**
-   * Rebuild shared sheets from whatever styles live in the host surface's
-   * shadow root. This automatically captures the full static CSS injected by
-   * the bundled entrypoint CSS AND the Mantine theme-variables <style>
-   * rendered in-tree — single source of truth, no extra plumbing. Re-run on
-   * theme changes (the variables style content is rewritten in place).
+   * Rebuild shared sheets from the <style> elements in the host surface's
+   * shadow root: the full static CSS WXT injects from the bundled entry CSS
+   * AND the Mantine theme-variables <style> rendered in-tree — single source
+   * of truth, no extra plumbing. Re-run on theme changes (the variables style
+   * content is rewritten in place). Sheets are cached by text, so a refresh
+   * only parses styles whose content changed; the ~250 kB static CSS is
+   * parsed once per surface.
    *
    * Note on side effects: the captured static CSS includes the global.css
    * `--text-*`/`--radius-*` Tailwind rem-compensation (`* var(--mantine-scale)`).
    * This allows satellites to inherit the host surface's rem scale automatically,
    * matching the shared-variable dependency that the host surface uses.
    */
-  async refreshSheets() {
+  refreshSheets() {
     const source = this.styleSource;
     if (!source) return;
-
-    // Concurrency guard: the <link> inlining below awaits, so two overlapping
-    // refreshes (e.g. rapid theme flips in dev) could otherwise finish out of
-    // order and let stale CSS clobber the newer capture. Only the latest call
-    // is allowed to commit. (Production builds inline all CSS as <style>, so
-    // the loop never awaits there and this token never trips.)
-    const token = ++this.refreshToken;
 
     const cssTexts: string[] = [];
     source.querySelectorAll('style').forEach((styleEl) => {
       if (styleEl.textContent) cssTexts.push(styleEl.textContent);
     });
-    // Dev mode may deliver entrypoint CSS via <link>; inline it. NOTE: this
-    // fetch runs under the HOST page's CSP — on a strict-CSP host page it can be
-    // blocked, leaving a dev-mode satellite unstyled (build output bundles CSS
-    // as inline <style>, so production is unaffected). Verify styling against a
-    // build, not dev, on locked-down sites.
-    for (const linkEl of source.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')) {
-      try {
-        cssTexts.push(await fetch(linkEl.href).then((r) => r.text()));
-      } catch (error) {
-        console.warn('[surface/satellite] failed to inline stylesheet link (host CSP?)', error);
-      }
-    }
-    if (token !== this.refreshToken) return; // superseded by a newer refresh
 
     this.cssTexts = cssTexts;
     if (this.useConstructableSheets) {
       try {
+        const cache = new Map(this.sheets.map((sheet, index) => [this.sheetTexts[index], sheet] as const));
         this.sheets = cssTexts.map((css) => {
+          const cached = cache.get(css);
+          if (cached) return cached;
           const sheet = new CSSStyleSheet();
           sheet.replaceSync(css);
           return sheet;
         });
+        this.sheetTexts = cssTexts;
       } catch (error) {
         // Constructability can fail even where replaceSync exists (e.g.
         // restrictive environments) — degrade to per-root <style> clones.
         console.warn('[surface/satellite] constructable sheets unavailable, falling back', error);
         this.useConstructableSheets = false;
         this.sheets = [];
+        this.sheetTexts = [];
       }
     }
     this.records.forEach((record) => this.applySheets(record.rootElement.getRootNode() as ShadowRoot));
@@ -194,8 +184,17 @@ class SatelliteRegistry {
 
   private applySheets(shadowRoot: ShadowRoot) {
     if (this.useConstructableSheets) {
-      shadowRoot.adoptedStyleSheets = this.sheets;
-      return;
+      try {
+        shadowRoot.adoptedStyleSheets = this.sheets;
+        return;
+      } catch (error) {
+        // Adopting can throw where constructing did not (e.g. a sheet from
+        // another realm); fall through to <style> clones for every root.
+        console.warn('[surface/satellite] adoptedStyleSheets unavailable, falling back', error);
+        this.useConstructableSheets = false;
+        this.sheets = [];
+        this.sheetTexts = [];
+      }
     }
     // Fallback: per-root <style> clones (uses more memory but maintains functionality).
     // Order is critical here (@layer): we must insert each style before the root
@@ -268,6 +267,7 @@ class SatelliteRegistry {
     for (const id of [...this.records.keys()]) this.destroy(id);
     this.styleSource = null;
     this.sheets = [];
+    this.sheetTexts = [];
     this.cssTexts = [];
   }
 
@@ -367,7 +367,7 @@ export function SatelliteOutlet() {
   // in-tree Mantine variables <style> may also be rewritten on color-scheme
   // flips — re-capture the shared sheets on either signal.
   useEffect(() => {
-    void satellites.refreshSheets();
+    satellites.refreshSheets();
   }, [theme, computedColorScheme]);
 
   useEffect(() => {

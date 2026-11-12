@@ -47,6 +47,7 @@ it('mounts style + div directly under the shadow root with our surface root insi
   expect(root.parentElement).toBe(ui.uiContainer);
 });
 
+// Our build strips @property (inline-surface-css); this pins WXT's behaviour if any slips through.
 it('hoists only the at-rules into one host <head> style and removes it with the UI', async () => {
   const { ui } = await surface();
   ui.mount();
