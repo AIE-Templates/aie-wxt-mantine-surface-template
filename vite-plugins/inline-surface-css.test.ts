@@ -1,11 +1,12 @@
 // @vitest-environment node
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { SourceMap } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { build } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
-import inlineSurfaceCss, { decodeVlq, keepAtRulesInShadow } from './inline-surface-css';
+import inlineSurfaceCss, { keepAtRulesInShadow } from './inline-surface-css';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -66,6 +67,8 @@ it.each([false, true])('embeds global and module CSS, preserving scoped names (m
   if (!chunk || !sheet || sheet.type !== 'asset') throw new Error('Missing JS or audit CSS');
   const context = { result: undefined as { css: string; classes: { panel: string } } | undefined };
   runInNewContext(chunk.code, context);
+  expect(sheet.fileName).toMatch(/^surface-css\/entry[\w-]*\.css$/);
+  expect(result.output.filter((item) => item.fileName.endsWith('.css'))).toHaveLength(1);
   expect(context.result?.css).toBe(sheet.source);
   expect(context.result?.css).toContain(context.result!.classes.panel);
   expect(context.result?.css).toContain('--surface-test');
@@ -106,36 +109,52 @@ it.each([
   expect(chunk.code).toContain('--surface-test');
 });
 
-it('keeps sourcemap columns after the inserted CSS aligned with the source', async () => {
-  const root = await fixture(true, `globalThis.result = [css, "AFTER_TOKEN"];`);
-  const chunk = await bundle(root, { minify: true, sourcemap: true });
-  const map = chunk.map;
-  if (!map) throw new Error('Missing sourcemap');
-  const offset = chunk.code.search(/["'`]AFTER_TOKEN/);
-  expect(offset).toBeGreaterThan(chunk.code.indexOf('--surface-test'));
-  const line = chunk.code.slice(0, offset).split('\n').length - 1;
-  const column = offset - (chunk.code.lastIndexOf('\n', offset - 1) + 1);
-  // Walk the mappings to the segment covering the token's generated position.
-  let source = 0;
-  let sourceLine = 0;
-  let sourceColumn = 0;
-  let hit: { source: number; line: number; column: number } | undefined;
-  map.mappings.split(';').forEach((text, index) => {
-    let generated = 0;
-    for (const segment of text ? text.split(',') : []) {
-      const fields = decodeVlq(segment);
-      generated += fields[0]!;
-      if (fields.length >= 4) {
-        source += fields[1]!;
-        sourceLine += fields[2]!;
-        sourceColumn += fields[3]!;
-      }
-      if (index === line && generated === column) hit = { source, line: sourceLine, column: sourceColumn };
-    }
+// Dev shape (`pnpm dev`: unminified, inline sourcemap), read back from the
+// WRITTEN file: rolldown serializes its own map, so the in-memory chunk proves nothing.
+it('keeps the written dev sourcemap aligned after the inserted CSS', async () => {
+  const root = await fixture(true, 'globalThis.result = [css, "AFTER_TOKEN"];\nglobalThis.later = "LATER_TOKEN";');
+  await build({
+    root,
+    configFile: false,
+    logLevel: 'silent',
+    plugins: [inlineSurfaceCss()],
+    build: {
+      outDir: join(root, 'dist'),
+      minify: false,
+      sourcemap: 'inline',
+      cssCodeSplit: false,
+      rollupOptions: { input: join(root, 'entry.js'), output: { format: 'iife', entryFileNames: 'entry.js' } },
+    },
   });
-  expect(hit).toBeDefined();
-  const entry = map.sourcesContent![hit!.source]!.split('\n')[hit!.line]!;
-  expect(entry.slice(hit!.column)).toMatch(/^"AFTER_TOKEN"/);
+  const code = await readFile(join(root, 'dist/entry.js'), 'utf8');
+  const encoded = /\/\/# sourceMappingURL=data:application\/json[^,]*;base64,([\w+/=]+)\s*$/.exec(code)?.[1];
+  if (!encoded) throw new Error('Missing inline sourcemap');
+  const payload = JSON.parse(Buffer.from(encoded, 'base64').toString());
+  const map = new SourceMap(payload);
+  const lines = code.split('\n');
+  const original = (line: number, column: number) => {
+    const entry = map.findEntry(line, column);
+    if (!('originalSource' in entry)) throw new Error(`No mapping for ${line}:${column}`);
+    const source =
+      payload.sourcesContent[payload.sources.findIndex((name: string) => entry.originalSource.endsWith(name))];
+    return { ...entry, text: source.split('\n')[entry.originalLine].slice(entry.originalColumn) };
+  };
+
+  // Nothing is mapped after the literal on its own line, so no column there can drift.
+  const cssLine = lines.findIndex((text) => text.includes('--surface-test'));
+  const tail = map.findEntry(cssLine, lines[cssLine]!.length - 1);
+  if ('generatedLine' in tail && tail.generatedLine === cssLine) {
+    expect(tail.generatedColumn).toBeLessThan(lines[cssLine]!.indexOf('--surface-test'));
+  }
+
+  // Code after the literal still resolves to its source position.
+  for (const token of ['globalThis.result', '"AFTER_TOKEN"', 'globalThis.later', '"LATER_TOKEN"']) {
+    const line = lines.findIndex((text, index) => index > cssLine && text.includes(token));
+    expect(line, token).toBeGreaterThan(cssLine);
+    const hit = original(line, lines[line]!.indexOf(token));
+    expect(hit.originalSource, token).toMatch(/entry\.js$/);
+    expect(hit.text.startsWith(token), `${token} -> ${hit.text}`).toBe(true);
+  }
 });
 
 describe('keepAtRulesInShadow', () => {

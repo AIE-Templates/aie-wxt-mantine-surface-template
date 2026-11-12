@@ -1,7 +1,9 @@
 /**
  * Embed the content entry's complete, processed CSS in its JS bundle.
- * Ordinary CSS and CSS Modules keep using Vite's pipeline; the emitted CSS
- * asset remains available for audits but is neither fetched nor host-injected.
+ * Ordinary CSS and CSS Modules keep using Vite's pipeline. The emitted sheet
+ * moves to `surface-css/<entry>.css`: an audit-only copy that nothing loads
+ * and `wxt zip` excludes, leaving `content-scripts/*.css` to entries that use
+ * WXT's normal CSS injection.
  * WXT builds each content script separately, including in development mode.
  *
  * The CSS only exists once Vite has emitted it (generateBundle), which is after
@@ -9,12 +11,17 @@
  * an expression the minifier cannot evaluate (an unknown global read), so code
  * such as `css.replaceAll(...)`, `css.length` or `css ? a : b` stays a runtime
  * operation and sees the real CSS instead of being folded against the marker.
- * The global is never set; content scripts run in an isolated world, so the
- * host page cannot set it either.
+ * The global is never set, and its key is a symbol, so neither host-page
+ * scripts (isolated world) nor named DOM elements (`id=...`) can supply it.
  *
- * The embedded CSS also drops `@property` registrations (see
- * keepAtRulesInShadow), so WXT has nothing to hoist into the host <head>.
+ * Sourcemaps: the literal is inserted without a newline, so only columns on
+ * its own line move. Unminified (dev) output maps nothing after it on that
+ * line; minified output with sourcemaps on drifts for the rest of that line,
+ * because rolldown writes the map it built before this hook.
+ *
+ * `@property` rules are dropped from the embedded CSS (see keepAtRulesInShadow).
  */
+import { posix } from 'node:path';
 import postcss, { type AtRule } from 'postcss';
 import type { Plugin } from 'vite';
 import { escapeNonAscii } from './to-utf8';
@@ -22,7 +29,9 @@ import { escapeNonAscii } from './to-utf8';
 const MODULE_ID = 'virtual:surface-css';
 const RESOLVED_ID = `\0${MODULE_ID}`;
 const MARKER = '__AIE_BUNDLED_SURFACE_CSS_61d9a7__';
-const OPAQUE_GLOBAL = '__aieSurfaceCssUnset';
+const OPAQUE_KEY = 'surface-css:unset';
+/** Output directory of the audit-only CSS copies (see wxt.config.ts `zip.exclude`). */
+export const SURFACE_CSS_DIR = 'surface-css';
 
 export default function inlineSurfaceCss(): Plugin {
   let loaded = false;
@@ -39,7 +48,7 @@ export default function inlineSurfaceCss(): Plugin {
     load(id) {
       if (id !== RESOLVED_ID) return;
       loaded = true;
-      return `export default String(globalThis.${OPAQUE_GLOBAL} ?? ${JSON.stringify(MARKER)});`;
+      return `export default String(globalThis[Symbol.for(${JSON.stringify(OPAQUE_KEY)})] ?? ${JSON.stringify(MARKER)});`;
     },
     generateBundle: {
       order: 'post',
@@ -70,22 +79,24 @@ export default function inlineSurfaceCss(): Plugin {
           this.error(error instanceof Error ? error.message : String(error));
         }
         if (/@font-face/.test(css)) {
-          this.warn('@font-face in surface CSS is hoisted into the host document by WXT; load fonts another way.');
+          this.warn('@font-face is ignored inside shadow roots, so fonts declared in surface CSS never load.');
         }
-        // The audit asset must stay identical to what ships in the JS.
-        sheet.source = css;
+        // Re-emit as the audit copy, named after the script that embeds it;
+        // it must stay identical to what ships in the JS.
+        delete bundle[sheet.fileName];
+        const scriptName = posix.basename(chunks[0]!.fileName).replace(/\.[cm]?js$/, '');
+        this.emitFile({ type: 'asset', fileName: `${SURFACE_CSS_DIR}/${scriptName}.css`, source: css });
         // This hook runs after CSS generation and may run after the ASCII
         // plugin, so escape the inserted literal here as well.
         const literal = escapeNonAscii(JSON.stringify(css));
         for (const chunk of chunks) {
           const token = new RegExp('(["\'`])' + MARKER + '\\1', 'g');
-          const edits: Edit[] = [];
-          chunk.code = chunk.code.replaceAll(token, (match: string, _quote: string, offset: number) => {
-            edits.push({ offset, removed: match.length, inserted: literal.length });
+          let replaced = false;
+          chunk.code = chunk.code.replaceAll(token, () => {
+            replaced = true;
             return literal;
           });
-          if (edits.length === 0) this.error('The surface CSS placeholder was transformed unexpectedly.');
-          if (chunk.map) chunk.map.mappings = shiftMappings(chunk.map.mappings, locate(chunk.code, edits));
+          if (!replaced) this.error('The surface CSS placeholder was transformed unexpectedly.');
         }
       },
     },
@@ -93,14 +104,13 @@ export default function inlineSurfaceCss(): Plugin {
 }
 
 /**
- * WXT hoists `@property` rules into the host page's <head> (they have no
- * effect inside a shadow root). Drop them for the shadow entry and let
- * Tailwind's own per-element fallback (`@layer properties { @supports (…) {
- * *, ::before, ::after, ::backdrop { --tw-*: initial } } }`), which it gates
- * to browsers without `@property`, apply unconditionally instead. The
- * surface then needs nothing outside its shadow trees, and satellites get the
- * initial values from the same captured CSS. Fails when the fallback does not
- * cover every dropped property (e.g. Tailwind changed its output shape).
+ * `@property` is ignored inside shadow roots, so Tailwind's registrations
+ * would leave its `--tw-*` variables without initial values there. Drop them
+ * and ungate Tailwind's own per-element fallback (`@layer properties {
+ * @supports (…) { *, ::before, ::after, ::backdrop { --tw-*: initial } } }`),
+ * which it otherwise limits to browsers without `@property`. Satellites get
+ * the same values from the shared sheet. Fails when a registration has no
+ * fallback (your own `@property`, or Tailwind changed its output shape).
  */
 export function keepAtRulesInShadow(css: string): string {
   const root = postcss.parse(css);
@@ -125,110 +135,9 @@ export function keepAtRulesInShadow(css: string): string {
   const missing = registered.filter((name) => !covered.has(name));
   if (missing.length > 0) {
     throw new Error(
-      `Cannot drop @property for ${missing.join(', ')}: no Tailwind \`@layer properties\` fallback sets them.`
+      `@property ${missing.join(', ')} cannot work in surface CSS: registrations are ignored inside shadow roots ` +
+        'and no `@layer properties` fallback sets an initial value. Declare the variable where it is used instead.'
     );
   }
   return root.toString();
-}
-
-interface Edit {
-  /** Offset of the replaced text in the ORIGINAL code. */
-  offset: number;
-  removed: number;
-  inserted: number;
-}
-
-interface LineShift {
-  line: number;
-  /** Generated columns at or after this (pre-edit) column move by `delta`. */
-  fromColumn: number;
-  delta: number;
-}
-
-/** Convert offset edits into per-line column shifts (the literal never contains a newline). */
-function locate(newCode: string, edits: Edit[]): LineShift[] {
-  const shifts: LineShift[] = [];
-  let drift = 0;
-  for (const edit of edits) {
-    const newOffset = edit.offset + drift;
-    const lineStart = newCode.lastIndexOf('\n', newOffset - 1) + 1;
-    const line = countNewlines(newCode, newOffset);
-    const prior = shifts.filter((s) => s.line === line).reduce((sum, s) => sum + s.delta, 0);
-    shifts.push({
-      line,
-      fromColumn: newOffset - lineStart - prior + edit.removed,
-      delta: edit.inserted - edit.removed,
-    });
-    drift += edit.inserted - edit.removed;
-  }
-  return shifts;
-}
-
-function countNewlines(code: string, end: number): number {
-  let count = 0;
-  for (let i = code.indexOf('\n'); i !== -1 && i < end; i = code.indexOf('\n', i + 1)) count++;
-  return count;
-}
-
-/**
- * Rolldown's generateBundle map is final and not recomposed after code edits,
- * so shift the generated columns that follow each inserted literal. Only the
- * generated column (the first, line-relative VLQ field of each segment) moves.
- */
-export function shiftMappings(mappings: string, shifts: LineShift[]): string {
-  if (shifts.length === 0) return mappings;
-  return mappings
-    .split(';')
-    .map((lineText, line) => {
-      const own = shifts.filter((s) => s.line === line);
-      if (own.length === 0 || lineText === '') return lineText;
-      let original = 0;
-      let previousShifted = 0;
-      return lineText
-        .split(',')
-        .map((segment) => {
-          const fields = decodeVlq(segment);
-          original += fields[0]!;
-          const shifted = original + own.filter((s) => original >= s.fromColumn).reduce((sum, s) => sum + s.delta, 0);
-          fields[0] = shifted - previousShifted;
-          previousShifted = shifted;
-          return encodeVlq(fields);
-        })
-        .join(',');
-    })
-    .join(';');
-}
-
-const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-export function decodeVlq(segment: string): number[] {
-  const values: number[] = [];
-  let value = 0;
-  let shift = 0;
-  for (const char of segment) {
-    const digit = BASE64.indexOf(char);
-    value += (digit & 31) * 2 ** shift;
-    if (digit & 32) {
-      shift += 5;
-    } else {
-      values.push(value % 2 === 1 ? -(value - 1) / 2 : value / 2);
-      value = 0;
-      shift = 0;
-    }
-  }
-  return values;
-}
-
-function encodeVlq(values: number[]): string {
-  let out = '';
-  for (const signed of values) {
-    let value = signed < 0 ? -signed * 2 + 1 : signed * 2;
-    do {
-      let digit = value % 32;
-      value = Math.floor(value / 32);
-      if (value > 0) digit |= 32;
-      out += BASE64[digit];
-    } while (value > 0);
-  }
-  return out;
 }

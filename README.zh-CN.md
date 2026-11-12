@@ -35,7 +35,7 @@
 
 需要 Node.js 22.12+ 和 pnpm 10.7.1。WXT 0.21 使用 Vite 8，并显式依赖 `web-ext` 以自动启动浏览器。生成的 TypeScript 配置保留新版严格检查。
 
-Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。输出的 CSS 文件用于审计，不会加载到宿主页面，`pnpm zip` 也不会把它打进安装包；运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
+Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。插件把输出的样式表移到 `surface-css/<入口>.css`，仅供审计：不会加载到宿主页面，`pnpm zip` 也不会把它打进安装包。未导入 `virtual:surface-css` 的 content script 仍使用 WXT 常规的 CSS 注入。运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
 
 ```bash
 pnpm install
@@ -60,7 +60,7 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest：测试生命周期、存储以及纯逻辑断言（基于 happy-dom 与 fake-browser）
 pnpm audit:css           # 验证 CSS 变量的作用域安全性（建议在升级 Tailwind 或 Mantine 后执行）
 pnpm audit:ascii         # 确保构建产物为纯 ASCII 字符（绕过 Chrome 在加载扩展时因 CJK/UTF-8 字符导致的解析错误）
-pnpm audit:surface       # 确认每个 content script 都内嵌了完整 CSS（不经 manifest 注入，也不作为 web-accessible 样式表暴露）
+pnpm audit:surface       # 确认每个 surface content script 都内嵌了完整 CSS（不经 manifest 注入，也不作为 web-accessible 样式表暴露）
                          # 三个审计均提供 `:firefox` 变体，用于检查 `pnpm build:firefox` 的产物
 
 pnpm zip                 # 打包生成适用于 Chrome Web Store 的 zip 压缩包（`pnpm zip:firefox` 适用于 AMO）
@@ -187,7 +187,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 ### 严格 CSP 兼容性
 
-即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——共享的 adopted 样式表、WXT 的 `:host` 重置和 Mantine 的主题变量——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容：WXT 本会把 `@property` 规则提升到那里（它们在 shadow root 内不生效），因此构建时会从 content script 的 CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量。Mantine 切换配色方案时注入的过渡 `<style>` 已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
+即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——共享的 adopted 样式表、WXT 的 `:host` 重置和 Mantine 的主题变量——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容。`@property` 规则在 shadow root 内不生效，因此构建时会从 surface CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量；代价是带类型的 `--tw-*` 值（如渐变色标）在那里无法参与过渡插值。Mantine 切换配色方案时注入的过渡 `<style>` 已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
 
 ---
 

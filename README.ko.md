@@ -35,7 +35,7 @@
 
 Node.js 22.12+ 및 pnpm 10.7.1이 필요합니다. WXT 0.21은 Vite 8을 사용하며 브라우저 자동 시작을 위해 `web-ext`를 명시적으로 설치합니다. 생성되는 TypeScript 설정은 새로운 엄격한 검사를 유지합니다.
 
-Content 진입점은 `cssInjectionMode: 'manual'`을 사용하고 `virtual:surface-css`를 `createShadowSurfaceUi`에 전달합니다. 빌드 플러그인은 CSS Modules를 포함한 처리된 CSS 전체를 스크립트에 삽입하여 `chrome-extension://` 스타일시트 요청을 없앱니다. 일반 CSS import를 유지하며 별도의 모듈 스타일 목록은 필요하지 않습니다. 개발 모드에서도 WXT는 각 content 진입점을 개별 빌드합니다. 출력 CSS는 감사용이며 호스트 페이지에 로드되지 않고 `pnpm zip` 패키지에도 포함되지 않습니다. `pnpm audit:surface` 또는 `pnpm audit:surface:firefox`로 삽입된 CSS와 출력 파일이 같은지 검사합니다. 문서 표면은 일반 스타일시트 로딩을 유지합니다.
+Content 진입점은 `cssInjectionMode: 'manual'`을 사용하고 `virtual:surface-css`를 `createShadowSurfaceUi`에 전달합니다. 빌드 플러그인은 CSS Modules를 포함한 처리된 CSS 전체를 스크립트에 삽입하여 `chrome-extension://` 스타일시트 요청을 없앱니다. 일반 CSS import를 유지하며 별도의 모듈 스타일 목록은 필요하지 않습니다. 개발 모드에서도 WXT는 각 content 진입점을 개별 빌드합니다. 플러그인은 출력된 스타일시트를 감사 전용 `surface-css/<진입점>.css`로 옮깁니다. 호스트 페이지에 로드되지 않고 `pnpm zip` 패키지에도 포함되지 않습니다. `virtual:surface-css`를 import하지 않는 content script는 WXT의 일반 CSS 주입을 그대로 사용합니다. `pnpm audit:surface` 또는 `pnpm audit:surface:firefox`로 삽입된 CSS와 출력 파일이 같은지 검사합니다. 문서 표면은 일반 스타일시트 로딩을 유지합니다.
 
 ```bash
 pnpm install
@@ -60,7 +60,7 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: 컴포넌트 생명주기, 스토리지 및 순수 로직의 불변성을 검증합니다 (happy-dom + fake-browser 환경)
 pnpm audit:css           # CSS 변수의 스코프 안전성을 검사합니다 (Tailwind 또는 Mantine 업데이트 후 실행 권장)
 pnpm audit:ascii         # 빌드 결과물이 순수 ASCII 문자로만 구성되었는지 보장합니다 (Chrome 확장 로드 시 CJK/UTF-8 관련 에러 방지)
-pnpm audit:surface       # 각 content script가 전체 CSS를 내장하는지 검사합니다 (manifest 주입이나 web-accessible 스타일시트 없음)
+pnpm audit:surface       # 각 surface content script가 전체 CSS를 내장하는지 검사합니다 (manifest 주입이나 web-accessible 스타일시트 없음)
                          # 세 감사 모두 `:firefox` 변형이 있어 `pnpm build:firefox` 산출물을 검사합니다
 
 pnpm zip                 # Chrome Web Store 배포를 위한 zip 아카이브를 생성합니다 (AMO 배포의 경우 `pnpm zip:firefox` 사용)
@@ -187,7 +187,7 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 
 ### 엄격한 CSP 호환성
 
-호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——공유 adopted 스타일시트, WXT의 `:host` 리셋, Mantine의 테마 변수——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. WXT는 `@property` 규칙(shadow root 안에서는 동작하지 않음)을 그곳으로 올리므로, 빌드 시 content script CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. Mantine이 색상 구성표 전환 시 주입하는 전환용 `<style>`은 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
+호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——공유 adopted 스타일시트, WXT의 `:host` 리셋, Mantine의 테마 변수——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. `@property` 규칙은 shadow root 안에서는 동작하지 않으므로, 빌드 시 surface CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. 그 대가로 타입이 지정된 `--tw-*` 값(예: 그라디언트 색상 정지점)은 그곳에서 트랜지션 보간이 되지 않습니다. Mantine이 색상 구성표 전환 시 주입하는 전환용 `<style>`은 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
 
 ---
 

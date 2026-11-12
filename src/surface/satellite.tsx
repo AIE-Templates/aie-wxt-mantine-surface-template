@@ -97,29 +97,6 @@ function isSatelliteAdjacent(anchor: Element, host: HTMLElement, position: Inser
   }
 }
 
-const supportsConstructableSheets = typeof CSSStyleSheet !== 'undefined' && 'replaceSync' in CSSStyleSheet.prototype;
-
-/** Static CSS a host surface owns, handed over directly instead of read from its DOM. */
-export interface SurfaceStaticStyles {
-  text: string;
-  /** The sheet the host surface adopted, shared as-is; null if it fell back to a <style>. */
-  sheet: CSSStyleSheet | null;
-}
-
-/** Marks a host-surface <style> that carries the static CSS (fallback path), so capture skips it. */
-export const STATIC_STYLE_ATTR = 'data-aie-static-style';
-
-const surfaceStyles = new WeakMap<ShadowRoot, SurfaceStaticStyles>();
-
-/**
- * Registered by surface/shadow at mount so satellites reuse the host surface's
- * static sheet instead of re-reading and re-parsing it.
- * @internal
- */
-export function registerSurfaceStyles(shadowRoot: ShadowRoot, styles: SurfaceStaticStyles): void {
-  surfaceStyles.set(shadowRoot, styles);
-}
-
 let nextSatelliteId = 0;
 
 class SatelliteRegistry {
@@ -128,12 +105,12 @@ class SatelliteRegistry {
   private listeners = new Set<() => void>();
   private sheets: CSSStyleSheet[] = [];
   private cssTexts: string[] = [];
+  /** Sheets parsed from the style source's <style> elements, by text, for reuse across refreshes. */
+  private parsed = new Map<string, CSSStyleSheet>();
   private styleSource: ShadowRoot | null = null;
   private observer: MutationObserver | null = null;
   private checkScheduled = false;
-  /** Source text of each entry in `sheets`, for reuse across refreshes. */
-  private sheetTexts: string[] = [];
-  private useConstructableSheets = supportsConstructableSheets;
+  private useConstructableSheets = true;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -152,19 +129,18 @@ class SatelliteRegistry {
     if (this.styleSource === shadowRoot) return;
     this.styleSource = shadowRoot;
     this.sheets = [];
-    this.sheetTexts = [];
+    this.parsed.clear();
     this.refreshSheets();
   }
 
   /**
-   * Rebuild the satellites' sheets: the host surface's static CSS (registered
-   * by surface/shadow, shared as the same CSSStyleSheet when the host adopted
-   * one) followed by every other <style> in the host shadow root — WXT's
-   * `:host` reset and the Mantine theme-variables <style> rendered in-tree.
-   * Re-run on theme changes (the variables style content is rewritten in
-   * place). Sheets are cached by text, so a refresh only parses styles whose
-   * content changed. Without a registration (a hand-built shadow env), every
-   * <style> is captured and parsed instead.
+   * Rebuild the satellites' sheets: the sheets the host surface adopted (its
+   * static CSS, shared as the same CSSStyleSheet objects) followed by every
+   * <style> in the host shadow root — WXT's `:host` reset and the Mantine
+   * theme-variables <style> rendered in-tree, plus the static CSS itself where
+   * the host fell back to a <style>. Re-run on theme changes (the variables
+   * style content is rewritten in place); <style> sheets are cached by text,
+   * so a refresh only parses styles whose content changed.
    *
    * Note on side effects: the static CSS includes the global.css
    * `--text-*`/`--radius-*` Tailwind rem-compensation (`* var(--mantine-scale)`).
@@ -175,35 +151,34 @@ class SatelliteRegistry {
     const source = this.styleSource;
     if (!source) return;
 
-    const statics = surfaceStyles.get(source);
-    const entries: { text: string; sheet: CSSStyleSheet | null }[] = statics ? [statics] : [];
-    source.querySelectorAll('style').forEach((styleEl) => {
-      if (statics && styleEl.hasAttribute(STATIC_STYLE_ATTR)) return;
-      if (styleEl.textContent) entries.push({ text: styleEl.textContent, sheet: null });
-    });
-
-    this.cssTexts = entries.map((entry) => entry.text);
+    this.cssTexts = [...source.querySelectorAll('style')].flatMap((styleEl) => styleEl.textContent || []);
     if (this.useConstructableSheets) {
       try {
-        const cache = new Map(this.sheets.map((sheet, index) => [this.sheetTexts[index], sheet] as const));
-        this.sheets = entries.map(({ text, sheet }) => {
-          const reused = sheet ?? cache.get(text);
-          if (reused) return reused;
-          const built = new CSSStyleSheet();
-          built.replaceSync(text);
-          return built;
-        });
-        this.sheetTexts = this.cssTexts;
+        const previous = this.parsed;
+        this.parsed = new Map();
+        for (const text of this.cssTexts) {
+          let sheet = previous.get(text);
+          if (!sheet) {
+            sheet = new CSSStyleSheet();
+            sheet.replaceSync(text);
+          }
+          this.parsed.set(text, sheet);
+        }
+        this.sheets = [...source.adoptedStyleSheets, ...this.parsed.values()];
       } catch (error) {
-        // Constructability can fail even where replaceSync exists (e.g.
-        // restrictive environments) — degrade to per-root <style> clones.
+        // Constructable sheets can be missing or unusable (e.g. restrictive
+        // environments) — degrade to per-root <style> clones.
         console.warn('[surface/satellite] constructable sheets unavailable, falling back', error);
-        this.useConstructableSheets = false;
-        this.sheets = [];
-        this.sheetTexts = [];
+        this.disableConstructableSheets();
       }
     }
     this.records.forEach((record) => this.applySheets(record.rootElement.getRootNode() as ShadowRoot));
+  }
+
+  private disableConstructableSheets() {
+    this.useConstructableSheets = false;
+    this.sheets = [];
+    this.parsed.clear();
   }
 
   private applySheets(shadowRoot: ShadowRoot) {
@@ -213,11 +188,11 @@ class SatelliteRegistry {
         return;
       } catch (error) {
         // Adopting can throw where constructing did not (e.g. a sheet from
-        // another realm); fall through to <style> clones for every root.
+        // another realm); fall through to <style> clones for every root. The
+        // host surface hits the same error and keeps its static CSS in a
+        // <style>, so `cssTexts` is complete.
         console.warn('[surface/satellite] adoptedStyleSheets unavailable, falling back', error);
-        this.useConstructableSheets = false;
-        this.sheets = [];
-        this.sheetTexts = [];
+        this.disableConstructableSheets();
       }
     }
     // Fallback: per-root <style> clones (uses more memory but maintains functionality).
@@ -291,7 +266,7 @@ class SatelliteRegistry {
     for (const id of [...this.records.keys()]) this.destroy(id);
     this.styleSource = null;
     this.sheets = [];
-    this.sheetTexts = [];
+    this.parsed.clear();
     this.cssTexts = [];
   }
 

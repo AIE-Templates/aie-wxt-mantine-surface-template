@@ -35,7 +35,7 @@ It guarantees comprehensive CSS isolation: your extension styles will not affect
 
 Requires Node.js 22.12+ and pnpm 10.7.1. WXT 0.21 uses Vite 8 and an explicit `web-ext` dependency for automatic browser startup. The generated TypeScript configuration keeps the new strict checks enabled.
 
-The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The emitted CSS file is retained for auditing; it is not loaded into the host page and `pnpm zip` leaves it out of the package. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
+The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The plugin moves the emitted sheet to `surface-css/<entry>.css`, an audit-only copy: it is not loaded into the host page and `pnpm zip` leaves it out of the package. Content scripts that do not import `virtual:surface-css` keep WXT's normal CSS injection. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
 
 ```bash
 pnpm install
@@ -60,7 +60,7 @@ pnpm compile && pnpm lint && pnpm build
 pnpm test                # vitest: evaluates lifecycle, storage, and logic invariants (happy-dom + fake-browser)
 pnpm audit:css           # Validates CSS variable scoping (recommended after updating Tailwind/Mantine)
 pnpm audit:ascii         # Asserts build artifacts are pure ASCII (prevents Chrome CJK/UTF-8 load-time rejections)
-pnpm audit:surface       # Asserts each content script embeds its complete CSS (no manifest injection or web-accessible stylesheet)
+pnpm audit:surface       # Asserts each surface content script embeds its complete CSS (no manifest injection or web-accessible stylesheet)
                          # All three audits have `:firefox` variants that check the `pnpm build:firefox` output instead
 
 pnpm zip                 # Packages a zip archive for the Chrome Web Store (`pnpm zip:firefox` for AMO)
@@ -187,7 +187,7 @@ Order: `floatUi < mainUi < modal < popover < notification < max`.
 
 ### Strict-CSP Compatibility
 
-The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — the shared adopted stylesheet, WXT's `:host` reset and Mantine's theme variables — so the host's `style-src`/`script-src` never reach it. Nothing is added to the host `<head>`: WXT would hoist `@property` rules there (they have no effect inside a shadow root), so the build drops them from the content-script CSS and applies Tailwind's per-element fallback for those variables instead. Mantine's color-scheme transition `<style>` is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
+The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — the shared adopted stylesheet, WXT's `:host` reset and Mantine's theme variables — so the host's `style-src`/`script-src` never reach it. Nothing is added to the host `<head>`. `@property` rules have no effect inside a shadow root, so the build drops them from the surface CSS and applies Tailwind's per-element fallback for those variables instead; the cost is that typed `--tw-*` values (e.g. gradient stops) do not interpolate in transitions there. Mantine's color-scheme transition `<style>` is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
 
 ---
 

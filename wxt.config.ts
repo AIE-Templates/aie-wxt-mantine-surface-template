@@ -2,7 +2,7 @@ import path from 'node:path';
 import { defineConfig, type WxtViteConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import checkPrefixSync from './vite-plugins/check-prefix-sync';
-import inlineSurfaceCss from './vite-plugins/inline-surface-css';
+import inlineSurfaceCss, { SURFACE_CSS_DIR } from './vite-plugins/inline-surface-css';
 import toUtf8 from './vite-plugins/to-utf8';
 
 // See https://wxt.dev/api/config.html
@@ -36,9 +36,9 @@ export default defineConfig({
     },
   },
   zip: {
-    // Content-script CSS is embedded in its JS (inline-surface-css) and only
-    // kept on disk for `audit:surface`; it never loads, so keep it out of the package.
-    exclude: ['content-scripts/*.css'],
+    // Audit-only copies of the CSS embedded in surface content scripts
+    // (inline-surface-css); nothing loads them, so keep them out of the package.
+    exclude: [`${SURFACE_CSS_DIR}/**`],
   },
   dev: {
     server: {

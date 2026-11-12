@@ -1,11 +1,11 @@
 import { ContentScriptContext } from 'wxt/utils/content-script-context';
 import { MantineProvider } from '@mantine/core';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SATELLITE_TAG, SURFACE_ROOT_CLASS } from '@/constants';
 import { SurfaceProvider } from './context';
 import type { SurfaceEnv } from './defs';
-import { createSatellite, SatelliteOutlet, STATIC_STYLE_ATTR } from './satellite';
+import { createSatellite, SatelliteOutlet } from './satellite';
 import { createShadowSurfaceUi } from './shadow';
 
 /**
@@ -64,7 +64,7 @@ it('mounts style + div directly under the shadow root and adopts the static CSS 
   expect(ui.shadow.adoptedStyleSheets).toHaveLength(1);
 });
 
-it('adds nothing to the host <head>, even for CSS WXT would hoist', async () => {
+it('adds nothing to the host <head>', async () => {
   const { ui } = await surface();
   ui.mount();
   expect(hoisted()).toHaveLength(0);
@@ -73,7 +73,7 @@ it('adds nothing to the host <head>, even for CSS WXT would hoist', async () => 
   expect(document.head.children).toHaveLength(0);
 });
 
-it('falls back to a marked <style> when the sheet cannot be adopted', async () => {
+it('falls back to a <style> when the sheet cannot be adopted', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'adoptedStyleSheets')!;
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   Object.defineProperty(ShadowRoot.prototype, 'adoptedStyleSheets', {
@@ -87,7 +87,6 @@ it('falls back to a marked <style> when the sheet cannot be adopted', async () =
     ui.mount();
     const styles = [...ui.shadow.querySelectorAll('style')];
     expect(styles).toHaveLength(2);
-    expect(styles[1]!.hasAttribute(STATIC_STYLE_ATTR)).toBe(true);
     expect(styles[1]!.textContent).toContain(':host { --probe: 1px; }');
     expect(styles[1]!.nextElementSibling).toBe(ui.uiContainer);
   } finally {
@@ -96,7 +95,7 @@ it('falls back to a marked <style> when the sheet cannot be adopted', async () =
   }
 });
 
-it('shares the host surface sheet object with satellites', async () => {
+it('shares the host surface sheet object with satellites across theme changes', async () => {
   let env: SurfaceEnv | undefined;
   const { ui } = await surface(
     vi.fn((container: HTMLElement, surfaceEnv: SurfaceEnv) => {
@@ -107,19 +106,31 @@ it('shares the host surface sheet object with satellites', async () => {
   ui.mount();
   const anchor = document.createElement('p');
   document.body.append(anchor);
-  const satellite = createSatellite(anchor, null);
-  const view = render(
+  const first = createSatellite(anchor, null);
+  const second = createSatellite(anchor, null, { position: 'beforebegin' });
+  const tree = (primaryColor: string) => (
     <SurfaceProvider env={env!}>
-      <MantineProvider>
+      <MantineProvider theme={{ primaryColor }} cssVariablesSelector={`.${SURFACE_ROOT_CLASS}`}>
         <SatelliteOutlet />
       </MantineProvider>
-    </SurfaceProvider>,
-    { container: env!.rootElement }
+    </SurfaceProvider>
   );
-  const satelliteSheets = satellite.hostElement.shadowRoot!.adoptedStyleSheets;
-  expect(satelliteSheets[0]).toBe(ui.shadow.adoptedStyleSheets[0]);
-  // The remaining entry is WXT's :host reset, so satellite hosts are reset too.
-  expect(satelliteSheets.slice(1).some((sheet) => staticText(sheet).includes('all'))).toBe(true);
+  const view = render(tree('blue'), { container: env!.rootElement });
+  const sheetsOf = (handle: typeof first) => handle.hostElement.shadowRoot!.adoptedStyleSheets;
+  const hostSheet = ui.shadow.adoptedStyleSheets[0]!;
+  const before = [...sheetsOf(first)];
+  expect(before[0]).toBe(hostSheet);
+  expect([...sheetsOf(second)]).toEqual(before);
+  // WXT's :host reset is captured too, so satellite hosts are reset as well.
+  const reset = before.find((sheet) => /all:\s*initial/.test(staticText(sheet)));
+  expect(reset).toBeDefined();
+
+  view.rerender(tree('red'));
+  await waitFor(() => expect([...sheetsOf(first)]).not.toEqual(before));
+  // Only the changed theme-variables style was re-parsed; the rest are the same objects.
+  expect(sheetsOf(first)[0]).toBe(hostSheet);
+  expect(sheetsOf(first)).toContain(reset);
+  expect([...sheetsOf(second)]).toEqual([...sheetsOf(first)]);
   view.unmount();
 });
 

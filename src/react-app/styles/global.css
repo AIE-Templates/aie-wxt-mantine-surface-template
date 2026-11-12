@@ -1,7 +1,7 @@
 /*
  * Shared stylesheet for every surface. Document surfaces load it via the
- * page <head>; shadow surfaces get it injected into the shadow root by WXT
- * from the bundled virtual:surface-css string; satellites share it via adoptedStyleSheets.
+ * page <head>; the shadow surface adopts it from the bundled
+ * virtual:surface-css string as one sheet that satellites share.
  *
  * `:root, .<prefix>-surface-root` double selector: `:root` matches in document
  * surfaces; `.<prefix>-surface-root` matches the surface root INSIDE shadow
@@ -17,7 +17,10 @@
  * `styles.css`), so this one declaration fixes precedence: Tailwind utilities
  * beat Mantine, which beats Tailwind base/theme — letting utility classes tweak
  * Mantine components without specificity wars. Unlayered rules below (e.g. the
- * rem compensation) still beat everything layered.
+ * rem compensation) still beat everything layered. Never set `--mantine-*`
+ * in unlayered rules: against Mantine's runtime theme-variables <style> the
+ * winner depends on the surface (this sheet is adopted after it in shadow
+ * surfaces, loaded before it elsewhere) — use theme.ts instead.
  */
 @layer theme, base, mantine, components, utilities;
 @import '@mantine/core/styles.layer.css';
