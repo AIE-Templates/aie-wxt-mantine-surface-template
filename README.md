@@ -139,7 +139,7 @@ Satellites incorporate `isolateEvents` by default, ensuring that user keyboard i
 - **Unmounting:** Occurs instantaneously if the host element or anchor is removed from the DOM.
 - **Relocation:** Adapts seamlessly if the anchor element shifts position on the page.
 
-Styles are distributed via constructable stylesheets: the host surface's static CSS is parsed once and the same sheet is adopted by every satellite; only the small Mantine theme-variables style is re-parsed when the theme changes. If the browser does not support them, the system falls back to cloning `<style>` tags. Development and production builds both embed the CSS in the content script, so no stylesheet is fetched in either mode.
+Styles are distributed via constructable stylesheets: the static CSS is parsed once into a single sheet that the host surface and every satellite adopt; only the small Mantine theme-variables style is re-parsed when the theme changes. If the browser does not support them, the system falls back to cloning `<style>` tags. Development and production builds both embed the CSS in the content script, so no stylesheet is fetched in either mode.
 
 ### Theming
 
@@ -187,7 +187,7 @@ Order: `floatUi < mainUi < modal < popover < notification < max`.
 
 ### Strict-CSP Compatibility
 
-The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — WXT's injected `<style>`, Mantine's theme variables, and satellites' `adoptedStyleSheets` — so the host's `style-src`/`script-src` never reach it. Nothing is added to the host `<head>`: WXT would hoist `@property` rules there (they have no effect inside a shadow root), so the build drops them from the content-script CSS and applies Tailwind's per-element fallback for those variables instead. Mantine's color-scheme transition `<style>` is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
+The surface keeps working on hosts with a strict Content-Security-Policy (e.g. `script-src 'self'; style-src 'self'; style-src-attr 'none'`, no `unsafe-inline`). Content-script JS runs in the isolated world (governed by the extension's own CSP, not the page's), and all styling lands inside the shadow root — the shared adopted stylesheet, WXT's `:host` reset and Mantine's theme variables — so the host's `style-src`/`script-src` never reach it. Nothing is added to the host `<head>`: WXT would hoist `@property` rules there (they have no effect inside a shadow root), so the build drops them from the content-script CSS and applies Tailwind's per-element fallback for those variables instead. Mantine's color-scheme transition `<style>` is disabled via `keepTransitions: true`. Verify with `test-pages/csp-strict-host.html` after `pnpm build`.
 
 ---
 

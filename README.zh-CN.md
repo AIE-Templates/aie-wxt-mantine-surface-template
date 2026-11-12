@@ -139,7 +139,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 - **自动卸载：** 当宿主元素或锚点从 DOM 树中被移除时，组件将瞬间卸载。
 - **无缝重定位：** 若锚点在页面文档流中发生位置偏移，组件将自动跟随并重新对齐。
 
-组件样式通过 Constructable Stylesheets 在各 Shadow Root 间共享：宿主 surface 的静态 CSS 只解析一次，所有 satellite 复用同一个样式表；主题变化时只重新解析 Mantine 那段很小的主题变量样式。若目标浏览器暂不支持，系统将降级为 `<style>` 标签克隆模式。开发和生产构建都会把 CSS 内嵌进 content script，两种模式下都不会去请求样式表。
+组件样式通过 Constructable Stylesheets 在各 Shadow Root 间共享：静态 CSS 只解析一次，宿主 surface 和所有 satellite 采用同一个样式表；主题变化时只重新解析 Mantine 那段很小的主题变量样式。若目标浏览器暂不支持，系统将降级为 `<style>` 标签克隆模式。开发和生产构建都会把 CSS 内嵌进 content script，两种模式下都不会去请求样式表。
 
 ### 主题管理
 
@@ -187,7 +187,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 ### 严格 CSP 兼容性
 
-即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——WXT 注入的 `<style>`、Mantine 的主题变量、satellites 的 `adoptedStyleSheets`——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容：WXT 本会把 `@property` 规则提升到那里（它们在 shadow root 内不生效），因此构建时会从 content script 的 CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量。Mantine 切换配色方案时注入的过渡 `<style>` 已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
+即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——共享的 adopted 样式表、WXT 的 `:host` 重置和 Mantine 的主题变量——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容：WXT 本会把 `@property` 规则提升到那里（它们在 shadow root 内不生效），因此构建时会从 content script 的 CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量。Mantine 切换配色方案时注入的过渡 `<style>` 已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
 
 ---
 

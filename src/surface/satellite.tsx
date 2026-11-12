@@ -6,10 +6,10 @@
  * - No provider stack and no React root per instance — the host surface's
  *   single React tree projects content into each satellite via createPortal,
  *   so theme/managers/modals context is available for free.
- * - No stylesheet copies — the host surface's injected styles (Mantine layer
- *   CSS, prefixed Tailwind, theme variables) are compiled once into
- *   constructable CSSStyleSheets and shared across every satellite shadow
- *   root via `adoptedStyleSheets`.
+ * - No stylesheet copies — the host surface's static CSS (Mantine layer CSS,
+ *   prefixed Tailwind) is ONE constructable CSSStyleSheet, adopted by the host
+ *   surface and every satellite shadow root alike; only the small in-tree
+ *   theme-variables style is parsed separately (and re-parsed on change).
  * - Lifecycle management — host pages can mutate anchors at any time during
  *   SPA re-renders. A single MutationObserver cleans up orphaned satellites
  *   (when the anchor is removed) and re-attaches displaced ones (when the anchor
@@ -99,6 +99,27 @@ function isSatelliteAdjacent(anchor: Element, host: HTMLElement, position: Inser
 
 const supportsConstructableSheets = typeof CSSStyleSheet !== 'undefined' && 'replaceSync' in CSSStyleSheet.prototype;
 
+/** Static CSS a host surface owns, handed over directly instead of read from its DOM. */
+export interface SurfaceStaticStyles {
+  text: string;
+  /** The sheet the host surface adopted, shared as-is; null if it fell back to a <style>. */
+  sheet: CSSStyleSheet | null;
+}
+
+/** Marks a host-surface <style> that carries the static CSS (fallback path), so capture skips it. */
+export const STATIC_STYLE_ATTR = 'data-aie-static-style';
+
+const surfaceStyles = new WeakMap<ShadowRoot, SurfaceStaticStyles>();
+
+/**
+ * Registered by surface/shadow at mount so satellites reuse the host surface's
+ * static sheet instead of re-reading and re-parsing it.
+ * @internal
+ */
+export function registerSurfaceStyles(shadowRoot: ShadowRoot, styles: SurfaceStaticStyles): void {
+  surfaceStyles.set(shadowRoot, styles);
+}
+
 let nextSatelliteId = 0;
 
 class SatelliteRegistry {
@@ -136,15 +157,16 @@ class SatelliteRegistry {
   }
 
   /**
-   * Rebuild shared sheets from the <style> elements in the host surface's
-   * shadow root: the full static CSS WXT injects from the bundled entry CSS
-   * AND the Mantine theme-variables <style> rendered in-tree — single source
-   * of truth, no extra plumbing. Re-run on theme changes (the variables style
-   * content is rewritten in place). Sheets are cached by text, so a refresh
-   * only parses styles whose content changed; the ~250 kB static CSS is
-   * parsed once per surface.
+   * Rebuild the satellites' sheets: the host surface's static CSS (registered
+   * by surface/shadow, shared as the same CSSStyleSheet when the host adopted
+   * one) followed by every other <style> in the host shadow root — WXT's
+   * `:host` reset and the Mantine theme-variables <style> rendered in-tree.
+   * Re-run on theme changes (the variables style content is rewritten in
+   * place). Sheets are cached by text, so a refresh only parses styles whose
+   * content changed. Without a registration (a hand-built shadow env), every
+   * <style> is captured and parsed instead.
    *
-   * Note on side effects: the captured static CSS includes the global.css
+   * Note on side effects: the static CSS includes the global.css
    * `--text-*`/`--radius-*` Tailwind rem-compensation (`* var(--mantine-scale)`).
    * This allows satellites to inherit the host surface's rem scale automatically,
    * matching the shared-variable dependency that the host surface uses.
@@ -153,23 +175,25 @@ class SatelliteRegistry {
     const source = this.styleSource;
     if (!source) return;
 
-    const cssTexts: string[] = [];
+    const statics = surfaceStyles.get(source);
+    const entries: { text: string; sheet: CSSStyleSheet | null }[] = statics ? [statics] : [];
     source.querySelectorAll('style').forEach((styleEl) => {
-      if (styleEl.textContent) cssTexts.push(styleEl.textContent);
+      if (statics && styleEl.hasAttribute(STATIC_STYLE_ATTR)) return;
+      if (styleEl.textContent) entries.push({ text: styleEl.textContent, sheet: null });
     });
 
-    this.cssTexts = cssTexts;
+    this.cssTexts = entries.map((entry) => entry.text);
     if (this.useConstructableSheets) {
       try {
         const cache = new Map(this.sheets.map((sheet, index) => [this.sheetTexts[index], sheet] as const));
-        this.sheets = cssTexts.map((css) => {
-          const cached = cache.get(css);
-          if (cached) return cached;
-          const sheet = new CSSStyleSheet();
-          sheet.replaceSync(css);
-          return sheet;
+        this.sheets = entries.map(({ text, sheet }) => {
+          const reused = sheet ?? cache.get(text);
+          if (reused) return reused;
+          const built = new CSSStyleSheet();
+          built.replaceSync(text);
+          return built;
         });
-        this.sheetTexts = cssTexts;
+        this.sheetTexts = this.cssTexts;
       } catch (error) {
         // Constructability can fail even where replaceSync exists (e.g.
         // restrictive environments) — degrade to per-root <style> clones.

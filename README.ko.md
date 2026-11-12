@@ -139,7 +139,7 @@ Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있�
 - **자동 언마운트:** 호스트 요소 또는 앵커가 DOM 트리에서 제거되는 즉시 컴포넌트는 언마운트됩니다.
 - **원활한 재배치:** 문서 흐름상 앵커 요소의 위치가 변경될 경우 컴포넌트가 이를 감지하여 자동으로 위치를 재조정합니다.
 
-컴포넌트의 스타일은 Constructable Stylesheets를 통해 공유됩니다. 호스트 surface의 정적 CSS는 한 번만 파싱되고 모든 satellite가 같은 시트를 채택하며, 테마가 바뀔 때는 작은 Mantine 테마 변수 스타일만 다시 파싱합니다. 대상 브라우저가 이를 지원하지 않으면 `<style>` 태그 클론 모드로 폴백합니다. 개발 빌드와 프로덕션 빌드 모두 CSS를 content script에 내장하므로 어느 모드에서도 스타일시트를 가져오지 않습니다.
+컴포넌트의 스타일은 Constructable Stylesheets를 통해 공유됩니다. 정적 CSS는 한 번만 파싱되어 호스트 surface와 모든 satellite가 같은 시트를 채택하며, 테마가 바뀔 때는 작은 Mantine 테마 변수 스타일만 다시 파싱합니다. 대상 브라우저가 이를 지원하지 않으면 `<style>` 태그 클론 모드로 폴백합니다. 개발 빌드와 프로덕션 빌드 모두 CSS를 content script에 내장하므로 어느 모드에서도 스타일시트를 가져오지 않습니다.
 
 ### 테마 관리
 
@@ -187,7 +187,7 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 
 ### 엄격한 CSP 호환성
 
-호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——WXT가 주입하는 `<style>`, Mantine의 테마 변수, satellites의 `adoptedStyleSheets`——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. WXT는 `@property` 규칙(shadow root 안에서는 동작하지 않음)을 그곳으로 올리므로, 빌드 시 content script CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. Mantine이 색상 구성표 전환 시 주입하는 전환용 `<style>`은 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
+호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——공유 adopted 스타일시트, WXT의 `:host` 리셋, Mantine의 테마 변수——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. WXT는 `@property` 규칙(shadow root 안에서는 동작하지 않음)을 그곳으로 올리므로, 빌드 시 content script CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. Mantine이 색상 구성표 전환 시 주입하는 전환용 `<style>`은 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
 
 ---
 

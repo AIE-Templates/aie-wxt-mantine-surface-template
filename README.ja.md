@@ -139,7 +139,7 @@ Satellites はデフォルトで `isolateEvents` 機構を備えており、拡�
 - **自動アンマウント:** ホスト要素またはアンカー要素がDOMツリーから削除されると、コンポーネントは即座にアンマウントされます。
 - **シームレスな再配置:** アンカー要素がページ上で位置を変更した場合、コンポーネントは自動的に追従して再配置されます。
 
-スタイルは Constructable Stylesheets を通じて共有されます。ホストサーフェスの静的 CSS は一度だけ解析され、すべての satellite が同じシートを採用します。テーマ変更時に再解析されるのは小さな Mantine テーマ変数スタイルだけです。対象ブラウザがサポートしていない場合は、`<style>` タグの複製モードにフォールバックします。開発ビルドと本番ビルドのどちらも CSS を content script に埋め込むため、どちらのモードでもスタイルシートを取得しません。
+スタイルは Constructable Stylesheets を通じて共有されます。静的 CSS は一度だけ解析され、ホストサーフェスとすべての satellite が同じシートを採用します。テーマ変更時に再解析されるのは小さな Mantine テーマ変数スタイルだけです。対象ブラウザがサポートしていない場合は、`<style>` タグの複製モードにフォールバックします。開発ビルドと本番ビルドのどちらも CSS を content script に埋め込むため、どちらのモードでもスタイルシートを取得しません。
 
 ### テーマ管理
 
@@ -187,7 +187,7 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 
 ### 厳格な CSP との互換性
 
-ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——WXT が注入する `<style>`、Mantine のテーマ変数、satellites の `adoptedStyleSheets`——そのためホストの `style-src`/`script-src` は届きません。ホストの `<head>` には何も追加されません。WXT は `@property` ルール（shadow root 内では効かない）をそこへ引き上げるため、ビルド時に content script の CSS から取り除き、代わりに Tailwind の要素ごとのフォールバックでこれらの変数を設定します。Mantine がカラースキーム切替時に注入する遷移用 `<style>` は `keepTransitions: true` で無効化しています。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
+ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——共有の adopted スタイルシート、WXT の `:host` リセット、Mantine のテーマ変数——そのためホストの `style-src`/`script-src` は届きません。ホストの `<head>` には何も追加されません。WXT は `@property` ルール（shadow root 内では効かない）をそこへ引き上げるため、ビルド時に content script の CSS から取り除き、代わりに Tailwind の要素ごとのフォールバックでこれらの変数を設定します。Mantine がカラースキーム切替時に注入する遷移用 `<style>` は `keepTransitions: true` で無効化しています。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
 
 ---
 

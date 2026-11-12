@@ -16,9 +16,11 @@
 import { createShadowRootUi } from '#imports';
 import { SURFACE_ROOT_CLASS } from '@/constants';
 import type { ColorSchemeStrategy, SurfaceEnv } from './defs';
-import { releaseSatellites } from './satellite';
+import { registerSurfaceStyles, releaseSatellites, STATIC_STYLE_ATTR } from './satellite';
 
 type ShadowRootUiCtx = Parameters<typeof createShadowRootUi>[0];
+
+const surfaceStylesAttached = new WeakSet<ShadowRoot>();
 
 export interface ShadowSurfaceOptions<TMounted> {
   /** Custom element tag name (must contain a dash), e.g. SHADOW_SURFACE_TAG. */
@@ -69,20 +71,71 @@ function computeHostRemScale(): number {
   return 16 / remPx;
 }
 
+/**
+ * Parse the static CSS once into a constructable sheet that the host surface
+ * and every satellite adopt. Returns null where constructable sheets are
+ * unavailable; callers then fall back to a plain <style>.
+ */
+function buildStaticSheet(css: string): CSSStyleSheet | null {
+  if (typeof CSSStyleSheet === 'undefined' || !('replaceSync' in CSSStyleSheet.prototype)) return null;
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    return sheet;
+  } catch (error) {
+    console.warn('[surface/shadow] constructable sheets unavailable, using <style>', error);
+    return null;
+  }
+}
+
+/**
+ * Attach the static CSS to the host shadow root, preferring the shared sheet.
+ * Adopted sheets cascade after the shadow root's <style> elements (WXT's
+ * `:host` reset, Mantine's theme variables); that is safe because the reset is
+ * `!important` and the static CSS is layered except for rules that never set
+ * Mantine variables. Returns the sheet actually adopted, or null after
+ * falling back to a <style> (e.g. Firefox content-script realm mismatches).
+ */
+function attachStaticStyles(shadowRoot: ShadowRoot, before: Node, css: string, sheet: CSSStyleSheet | null) {
+  if (sheet) {
+    try {
+      shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, sheet];
+      return sheet;
+    } catch (error) {
+      console.warn('[surface/shadow] adoptedStyleSheets unavailable, using <style>', error);
+    }
+  }
+  const style = document.createElement('style');
+  style.setAttribute(STATIC_STYLE_ATTR, '');
+  style.textContent = css;
+  shadowRoot.insertBefore(style, before);
+  return null;
+}
+
 export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, options: ShadowSurfaceOptions<TMounted>) {
   const scale = computeHostRemScale();
+  // WXT does not rewrite `css` it is given, and we no longer give it any:
+  // the static CSS is attached in onMount as one shared sheet.
+  const css = options.css?.replaceAll(':root', ':host');
+  const sheet = css ? buildStaticSheet(css) : null;
   // WXT calls onMount on every mount(); remembered so a repeated mount()
   // without remove() reuses the app instead of starting a second one.
   let current: { rootElement: HTMLElement; shadowRoot: ShadowRoot; mounted: TMounted } | undefined;
 
   return createShadowRootUi<TMounted>(ctx, {
     name: options.name,
-    css: options.css?.replaceAll(':root', ':host'),
     position: options.position ?? 'overlay',
     anchor: options.anchor ?? 'body',
     isolateEvents: options.isolateEvents ?? ['keydown', 'keyup', 'keypress'],
     onMount: (container, shadowRoot) => {
       if (current?.rootElement.parentNode === container) return current.mounted;
+
+      // Attached once per shadow root; a remount after remove() reuses it.
+      if (css && !surfaceStylesAttached.has(shadowRoot)) {
+        const adopted = attachStaticStyles(shadowRoot, container, css, sheet);
+        registerSurfaceStyles(shadowRoot, { text: css, sheet: adopted });
+        surfaceStylesAttached.add(shadowRoot);
+      }
 
       // WXT 0.21 supplies a div inside the shadow root. Keep our own wrapper
       // as the Mantine theme root and portal target so all floating layers
