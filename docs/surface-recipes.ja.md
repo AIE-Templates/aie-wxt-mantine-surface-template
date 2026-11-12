@@ -133,4 +133,4 @@ export default defineContentScript({
 
 fetch には `ctx.signal` を渡し、abort を処理してください。ただしリクエストの中止は全非同期処理の終了を意味しないため、await 後の確認も必要です。start/stop が重なる場合は両操作で generation を進め、await 後に検証します。コンテキストが有効でも、個別の操作が置き換えられている可能性があります。
 
-`await createShadowSurfaceUi(...)` の後、`ui.mount()` の前にも無効化を確認します。既存エントリーのように `onRemove` を React root のアンマウントに接続し、初期化 Promise の失敗を処理してください。別のライフサイクルフレームワークは不要です。
+`createShadowSurfaceUi` は、コンテキストが無効化された後の `mount()` / `autoMount()` を無視し、無効化時に UI を削除します（`autoMount` も停止します）。それでも既存エントリーのように、`await` の後は `ctx.isInvalid` を確認してから他の処理を開始してください。あわせて `onRemove` を React root のアンマウントに接続し、初期化 Promise の失敗を処理してください。別のライフサイクルフレームワークは不要です。

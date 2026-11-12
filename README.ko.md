@@ -43,7 +43,7 @@ pnpm dev                 # Chrome: 확장 프로그램이 로드된 개발용 �
 pnpm dev:firefox         # Firefox
 ```
 
-`pnpm dev` 명령어를 실행하면, 페이지 내 주입(in-page injection) UI 컴포넌트를 테스트하기 위한 로컬 호스트 페이지가 함께 시작됩니다. (내부적으로 `python3 -m http.server -d test-pages 8787`이 실행되며 `http://localhost:8787`에서 서비스됩니다.)
+페이지 내 주입(in-page injection) UI를 테스트하려면 `python3 -m http.server -d test-pages 8787`로 로컬 테스트 호스트 페이지를 서비스한 뒤 `http://localhost:8787/tw3-host.html`을 여십시오.
 
 ### 환경 설정 및 커스터마이징
 
@@ -122,7 +122,14 @@ interface SurfaceEnv {
   rootElement: HTMLElement; // Mantine 변수 및 data-mantine-* 속성이 할당되는 호스트 노드
   portalTarget: HTMLElement; // Modal, Popover 등 플로팅 레이어의 마운트 타겟
   scale: number; // 동적 Rem 보정 계수 (16 / 호스트의 실제 rem 기준값). Document 환경에서는 항상 1입니다.
-  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark';
+  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark' | ColorSchemeSource;
+  shadowRoot?: ShadowRoot; // shadow surface에서만 존재
+}
+
+// 이 Surface의 확정된 색상 구성표를 제공하는 외부 스토어 (Surface 도입 가이드 참고)
+interface ColorSchemeSource {
+  getSnapshot: () => 'light' | 'dark';
+  subscribe: (listener: () => void) => () => void;
 }
 ```
 
@@ -134,10 +141,10 @@ Satellite는 호스트 페이지에 주입되는 매우 가볍고 타겟팅된 U
 
 `createSatellite()`를 사용하여 콘텐츠를 `SatelliteOutlet`으로 매핑하십시오. Outlet의 마운트 수명 주기는 `renderSurfaceApp`에 의해 자동으로 관리됩니다.
 
-Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있어, 확장 프로그램 내 사용자의 키보드 입력이 호스트 페이지의 단축키를 의도치 않게 트리거하는 것을 방지합니다. 내부적으로 `MutationObserver`가 DOM 트리를 감시하여 Satellite의 정확한 배치를 유지합니다.
+Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있어, 확장 프로그램 내 사용자의 키보드 입력이 호스트 페이지의 단축키를 의도치 않게 트리거하는 것을 방지합니다. 이 격리 상태에서도 Mantine의 포커스 트랩과 포커스 복귀는 정상 동작합니다([키보드 격리와 포커스](#키보드-격리와-포커스) 참고). 내부적으로 `MutationObserver`가 DOM 트리를 감시하여 Satellite의 정확한 배치를 유지합니다.
 
 - **자동 언마운트:** 호스트 요소 또는 앵커가 DOM 트리에서 제거되는 즉시 컴포넌트는 언마운트됩니다.
-- **원활한 재배치:** 문서 흐름상 앵커 요소의 위치가 변경될 경우 컴포넌트가 이를 감지하여 자동으로 위치를 재조정합니다.
+- **원활한 재배치:** 문서 흐름상 앵커 요소의 위치가 변경될 경우 컴포넌트가 이를 감지하여 자동으로 위치를 재조정합니다. 여러 Satellite가 같은 앵커와 삽입 위치를 공유할 수 있습니다.
 
 컴포넌트의 스타일은 Constructable Stylesheets를 통해 공유됩니다. 정적 CSS는 한 번만 파싱되어 호스트 surface와 모든 satellite가 같은 시트를 채택하며, 테마가 바뀔 때는 작은 Mantine 테마 변수 스타일만 다시 파싱합니다. 대상 브라우저가 이를 지원하지 않으면 `<style>` 태그 클론 모드로 폴백합니다. 개발 빌드와 프로덕션 빌드 모두 CSS를 content script에 내장하므로 어느 모드에서도 스타일시트를 가져오지 않습니다.
 
@@ -151,9 +158,9 @@ Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있�
 
 ### 상태 동기화
 
-각 Surface 간의 상태 동기화는 WXT가 제공하는 Storage API에 의해 완벽하게 처리됩니다. 팝업에서 테마를 변경하면 페이지 내 주입된 UI도 실시간(밀리초 단위)으로 업데이트됩니다.
+각 Surface 간의 상태 동기화는 WXT가 제공하는 Storage API에 의해 완벽하게 처리됩니다. 팝업에서 테마를 변경하면 페이지 내 주입된 UI도 실시간(밀리초 단위)으로 업데이트됩니다. 각 Surface는 구독을 시작한 뒤 설정을 한 번 더 읽으므로, 시작 도중에 발생한 변경도 놓치지 않습니다.
 
-커스텀 반응형 상태를 동기화해야 할 경우, `useExtStorage` 훅을 사용하여 인스턴스 전반의 `storage.defineItem` 호출을 래핑하십시오. 이때 구성 객체나 배열의 대체 기본값(Fallback)은 불필요한 렌더링을 방지하기 위해 모듈 레벨의 안정적인 참조를 사용해야 합니다.
+커스텀 반응형 상태를 동기화해야 할 경우, `useExtStorage` 훅을 사용하여 인스턴스 전반의 `storage.defineItem` 호출을 래핑하십시오. 이때 구성 객체나 배열의 대체 기본값(Fallback)은 불필요한 렌더링을 방지하기 위해 모듈 레벨의 안정적인 참조를 사용해야 합니다. 쓰기는 낙관적으로 처리됩니다. 값이 동기적으로 반영되고(제어 입력의 캐럿이 튀지 않음), 쓰기가 끝나면 storage와 대조하여 정합성을 맞춥니다.
 
 ### 컨텍스트 통신
 
@@ -168,15 +175,16 @@ Satellites는 기본적으로 `isolateEvents` 메커니즘을 내장하고 있�
 
 Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특성으로 인해 예기치 않은 부작용이 발생할 수 있습니다. 다음은 일반적인 엣지 케이스에 대한 대응 전략입니다.
 
-| 문제 현상                   | 증상                                                              | 해결 방안                                                                            |
-| --------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 속성 상속의 영향            | 호스트 페이지의 폰트 설정이 확장 프로그램 UI를 오염시킴           | `.aie-surface-root` 컨테이너 레벨에서 타이포그래피 초기화(Reset)를 엄격히 적용       |
-| `rem` 기준치 누수           | 호스트의 비정상적인 `font-size`로 인해 UI 비율이 손상됨           | `theme.scale = 16 / 호스트 실제 rem 값`을 설정하여 역방향 동적 보정 적용             |
-| `@property` 충돌            | Tailwind CSS 변수가 호스트 페이지 변수와 충돌함                   | `postcss.config.cjs`를 통해 `--tw-` 접두사를 `--aie-tw-`로 일괄 변환 적용 완료       |
-| Tailwind `rem` 보정         | 호스트의 `rem` 변동으로 인해 Tailwind 간격 유틸리티가 무력화됨    | `.aie-surface-root` 영역에 `calc(x * var(--mantine-scale, 1))` 보정 계수를 강제 적용 |
-| Modal의 `lockScroll`        | Modal 활성화 시 호스트 페이지 전체가 스크롤 불능 상태에 빠짐      | 모든 Modal 및 Drawer 컴포넌트에 대해 `lockScroll: false` 속성을 명시적으로 비활성화  |
-| `lightningcss` 정밀도 문제  | 컴파일 시 과도하게 큰 `z-index` 값이 잘못 압축됨                  | `Z_INDEX` 상수의 유효 숫자를 6자리 이하로 제한하여 설계                              |
-| 외부 문서 스타일의 덮어쓰기 | 호스트 페이지의 가중치가 높은 CSS가 확장 프로그램 스타일을 무시함 | UI 프레임워크의 CSS 변수를 `.aie-surface-root` 스코프 내부로 엄격히 제한             |
+| 문제 현상                   | 증상                                                                                       | 해결 방안                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| 속성 상속의 영향            | 호스트 페이지의 폰트 설정이 확장 프로그램 UI를 오염시킴                                    | `.aie-surface-root` 컨테이너 레벨에서 타이포그래피 초기화(Reset)를 엄격히 적용       |
+| `rem` 기준치 누수           | 호스트의 비정상적인 `font-size`로 인해 UI 비율이 손상됨                                    | `theme.scale = 16 / 호스트 실제 rem 값`을 설정하여 역방향 동적 보정 적용             |
+| `@property` 충돌            | Tailwind CSS 변수가 호스트 페이지 변수와 충돌함                                            | `postcss.config.cjs`를 통해 `--tw-` 접두사를 `--aie-tw-`로 일괄 변환 적용 완료       |
+| Tailwind `rem` 보정         | 호스트의 `rem` 변동으로 인해 Tailwind 간격 유틸리티가 무력화됨                             | `.aie-surface-root` 영역에 `calc(x * var(--mantine-scale, 1))` 보정 계수를 강제 적용 |
+| Modal의 `lockScroll`        | Modal 활성화 시 호스트 페이지 전체가 스크롤 불능 상태에 빠짐                               | 모든 Modal 및 Drawer 컴포넌트에 대해 `lockScroll: false` 속성을 명시적으로 비활성화  |
+| `lightningcss` 정밀도 문제  | 컴파일 시 과도하게 큰 `z-index` 값이 잘못 압축됨                                           | `Z_INDEX` 상수의 유효 숫자를 6자리 이하로 제한하여 설계                              |
+| 외부 문서 스타일의 덮어쓰기 | 호스트 페이지의 가중치가 높은 CSS가 확장 프로그램 스타일을 무시함                          | UI 프레임워크의 CSS 변수를 `.aie-surface-root` 스코프 내부로 엄격히 제한             |
+| 키 격리 상태의 포커스 관리  | Modal / Drawer의 포커스 트랩이 Tab에 반응하지 않고, 닫아도 포커스가 트리거로 돌아오지 않음 | 모든 Surface와 Satellite에 `bridgeFocus`(`surface/focus-bridge.ts`)를 연결해 둠      |
 
 ### CSS 변수 보안 전략
 
@@ -184,6 +192,12 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 
 **Z-Index 계층 규약:** `src/constants`의 `Z_INDEX` 상수로 정의되며 `global.css`에 `--<prefix>-z-*` CSS 변수로 미러링됩니다（`src/constants/index.test.ts`의 테스트가 둘의 동기화를 보장합니다）.
 우선순위: `floatUi < mainUi < modal < popover < notification < max`.
+
+### 키보드 격리와 포커스
+
+Surface와 Satellite는 호스트 페이지의 단축키가 실행되지 않도록 각자의 shadow root에서 `keydown` / `keyup` / `keypress`를 차단합니다. 반면 Mantine은 `document`에서 포커스를 관리합니다. `useFocusTrap`과 `useFocusReturn`은 `document`의 `keydown`을 수신하고 `document.activeElement`를 읽는데, shadow 트리 밖에서는 이 값이 shadow 호스트 요소로만 보입니다. `bridgeFocus(shadowRoot, { relayTab })`(`surface/focus-bridge.ts`)는 콘텐츠 스크립트의 isolated world 안에서 이 두 가지 간극을 메웁니다. 해당 world 자신의 `document` 객체에서 `addEventListener` / `removeEventListener`를 래핑하고 `activeElement`를 재정의하여, Tab `keydown`의 복사본을 그 world의 `document` keydown 리스너에 전달하고 `document.activeElement`가 브리지에 등록된 shadow root 내부까지 해석되도록 합니다. 그 결과 Modal / Drawer의 포커스 트랩이 동작하고, 닫으면 포커스가 트리거로 돌아옵니다. 호스트 페이지의 world(그쪽의 `document`, 리스너, `activeElement`)는 영향을 받지 않으며 키 이벤트도 전혀 전달되지 않습니다.
+
+`createShadowSurfaceUi`와 `createSatellite`가 이를 자동으로 호출합니다. shadow root를 직접 만든다면 내부 UI를 마운트하기 전에 `bridgeFocus`를 호출하십시오(해당 root가 `keydown`을 차단한다면 `relayTab: true`를 전달). 제한 사항은 [알려진 제한 사항](#7-알려진-제한-사항)을 참고하십시오.
 
 ### 엄격한 CSP 호환성
 
@@ -239,6 +253,7 @@ Shadow DOM은 뛰어난 캡슐화를 제공하지만, CSS의 특정 상속 특�
 - Rem 기반의 동적 보정 계수는 초기화 라이프사이클 동안 단 한 번만 연산됩니다. 따라서 호스트 페이지 런타임 시 동적으로 최상위 루트 폰트 크기가 변경되더라도 확장 프로그램의 UI가 이에 맞추어 자동 재조정되지 않습니다.
 - 내장된 `MutationObserver`는 기본적으로 DOM 트리 전체의 변이를 감시합니다. 노드 변경이 빈번하게 발생하는 무거운 단일 페이지 애플리케이션(SPA) 환경에서는 불필요한 CPU 사이클 낭비를 막기 위해 개발자가 직접 명시적인 해제(Teardown) 로직을 구현할 것을 권장합니다.
 - 프레임워크가 제공하는 이벤트 격리 수준은 현재 버블링 단계(Bubble Phase)의 이벤트 전파 차단에 국한되어 동작합니다.
+- 포커스 브리지는 Tab만 중계합니다(다른 키는 완전히 격리된 상태로 유지됩니다). `document` 리스너는 이벤트의 복사본을 받으며(`isTrusted`는 `false`, `target`은 비공개 요소), 캡처 단계의 `document` 리스너와, 중계를 수행하는 첫 shadow root가 브리지되기 전에 등록된 keydown 리스너는 미러링되지 않습니다. 콘텐츠 스크립트 world의 모든 코드에서 `document.activeElement`는 shadow root 내부까지 해석된 값으로 보입니다.
 
 ---
 

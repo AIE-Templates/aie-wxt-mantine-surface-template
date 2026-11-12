@@ -1,6 +1,6 @@
 # aie-wxt-mantine-surface-template
 
-> Optional customization and lifecycle examples: [Surface recipes](docs/surface-recipes.md) (English).
+> Optional customization and lifecycle examples: [Surface recipes](docs/surface-recipes.md).
 
 **English** | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
@@ -43,7 +43,7 @@ pnpm dev                 # Chrome: launches a development browser with the exten
 pnpm dev:firefox         # Firefox
 ```
 
-`pnpm dev` also initializes a local test host page at `http://localhost:8787` for evaluating in-page injected UIs (executing `python3 -m http.server -d test-pages 8787` internally).
+To evaluate in-page injected UIs, serve the local test host pages with `python3 -m http.server -d test-pages 8787` and open `http://localhost:8787/tw3-host.html`.
 
 ### Customization
 
@@ -122,7 +122,14 @@ interface SurfaceEnv {
   rootElement: HTMLElement; // The Mantine variable root and data-mantine-* attribute host
   portalTarget: HTMLElement; // The injection target for floating layers (Modals, Popovers)
   scale: number; // Rem compensation (16 / host's actual rem base). Always 1 for documents.
-  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark';
+  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark' | ColorSchemeSource;
+  shadowRoot?: ShadowRoot; // Present only for shadow surfaces
+}
+
+// An external store supplying this surface's resolved scheme (see Surface recipes)
+interface ColorSchemeSource {
+  getSnapshot: () => 'light' | 'dark';
+  subscribe: (listener: () => void) => () => void;
 }
 ```
 
@@ -134,10 +141,10 @@ Satellites are performant, highly-targeted UI components injected into the host 
 
 Render content into a `SatelliteOutlet` using `createSatellite()`. The mounting of the outlet is automatically managed by `renderSurfaceApp`.
 
-Satellites incorporate `isolateEvents` by default, ensuring that user keyboard interactions within the extension do not inadvertently trigger host page shortcuts. A `MutationObserver` monitors the DOM to maintain satellite alignment:
+Satellites incorporate `isolateEvents` by default, ensuring that user keyboard interactions within the extension do not inadvertently trigger host page shortcuts. Mantine's focus traps and focus return keep working behind that isolation (see [Keyboard Isolation and Focus](#keyboard-isolation-and-focus)). A `MutationObserver` monitors the DOM to maintain satellite alignment:
 
 - **Unmounting:** Occurs instantaneously if the host element or anchor is removed from the DOM.
-- **Relocation:** Adapts seamlessly if the anchor element shifts position on the page.
+- **Relocation:** Adapts seamlessly if the anchor element shifts position on the page. Several satellites may share one anchor and position.
 
 Styles are distributed via constructable stylesheets: the static CSS is parsed once into a single sheet that the host surface and every satellite adopt; only the small Mantine theme-variables style is re-parsed when the theme changes. If the browser does not support them, the system falls back to cloning `<style>` tags. Development and production builds both embed the CSS in the content script, so no stylesheet is fetched in either mode.
 
@@ -151,9 +158,9 @@ Styles are distributed via constructable stylesheets: the static CSS is parsed o
 
 ### State Synchronization
 
-State synchronization across all surfaces is managed seamlessly via WXT storage. Modifying the theme within the popup will update the in-page UI in real-time.
+State synchronization across all surfaces is managed seamlessly via WXT storage. Modifying the theme within the popup will update the in-page UI in real-time. Each surface also re-reads the preferences once after subscribing, so a change made while it was starting up is not missed.
 
-For synchronizing custom reactive state, utilize the `useExtStorage` hook to wrap `storage.defineItem` across all instances. Ensure that object or array fallbacks utilize stable, module-level references.
+For synchronizing custom reactive state, utilize the `useExtStorage` hook to wrap `storage.defineItem` across all instances. Ensure that object or array fallbacks utilize stable, module-level references. Writes are optimistic: the value updates synchronously (a controlled input keeps its caret) and is reconciled with storage once the write settles.
 
 ### Communication
 
@@ -168,15 +175,16 @@ The template provides two strictly-typed channels for cross-context communicatio
 
 While the Shadow DOM provides robust encapsulation, CSS inheritance can still introduce edge cases. The following strategies address common issues:
 
-| Issue                  | Symptom                                             | Resolution                                                                        |
-| ---------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Inherited properties   | Host page typography affects extension UI           | Apply strict typography resets on `.aie-surface-root`                             |
-| `rem` sizing leaks     | Host's `font-size` scales the UI disproportionately | Set `theme.scale = 16 / real-rem` to counteract the host's base                   |
-| `@property` collisions | Tailwind CSS variables conflict with the host       | Rename variables from `--tw-` to `--aie-tw-` (configured in `postcss.config.cjs`) |
-| Tailwind `rem` bugs    | Tailwind spacing breaks due to host `rem` scaling   | Apply `calc(x * var(--mantine-scale, 1))` on `.aie-surface-root`                  |
-| Modal `lockScroll`     | Modals freeze the underlying host page              | Set `lockScroll: false` on all Modals and Drawers                                 |
-| `lightningcss` bugs    | High `z-index` values are unexpectedly collapsed    | Restrict `Z_INDEX` constants to 6 significant digits or fewer                     |
-| External CSS overrides | Host CSS bypasses extension encapsulation           | Enforce framework variables strictly within `.aie-surface-root`                   |
+| Issue                      | Symptom                                                                   | Resolution                                                                        |
+| -------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Inherited properties       | Host page typography affects extension UI                                 | Apply strict typography resets on `.aie-surface-root`                             |
+| `rem` sizing leaks         | Host's `font-size` scales the UI disproportionately                       | Set `theme.scale = 16 / real-rem` to counteract the host's base                   |
+| `@property` collisions     | Tailwind CSS variables conflict with the host                             | Rename variables from `--tw-` to `--aie-tw-` (configured in `postcss.config.cjs`) |
+| Tailwind `rem` bugs        | Tailwind spacing breaks due to host `rem` scaling                         | Apply `calc(x * var(--mantine-scale, 1))` on `.aie-surface-root`                  |
+| Modal `lockScroll`         | Modals freeze the underlying host page                                    | Set `lockScroll: false` on all Modals and Drawers                                 |
+| `lightningcss` bugs        | High `z-index` values are unexpectedly collapsed                          | Restrict `Z_INDEX` constants to 6 significant digits or fewer                     |
+| External CSS overrides     | Host CSS bypasses extension encapsulation                                 | Enforce framework variables strictly within `.aie-surface-root`                   |
+| Focus behind key isolation | Modal/Drawer focus traps ignore Tab; focus does not return to the trigger | `bridgeFocus` (`surface/focus-bridge.ts`), wired into every surface and satellite |
 
 ### CSS Variables Strategy
 
@@ -184,6 +192,12 @@ All root-level CSS variables are securely scoped within `.aie-surface-root` insi
 
 **Z-index Hierarchy:** Defined as the `Z_INDEX` constant in `src/constants` and mirrored as `--<prefix>-z-*` CSS variables in `global.css` (a test in `src/constants/index.test.ts` keeps the two in sync).
 Order: `floatUi < mainUi < modal < popover < notification < max`.
+
+### Keyboard Isolation and Focus
+
+Surfaces and satellites stop `keydown`/`keyup`/`keypress` at their shadow root so host-page hotkeys never fire. Mantine, however, manages focus on `document`: `useFocusTrap` and `useFocusReturn` listen for `keydown` there and read `document.activeElement`, which outside a shadow tree is only the shadow host. `bridgeFocus(shadowRoot, { relayTab })` (`surface/focus-bridge.ts`) closes both gaps inside the content script's isolated world. It wraps `addEventListener`/`removeEventListener` and overrides `activeElement` on that world's own `document` object, so that a copy of each Tab keydown reaches that world's `document` keydown listeners and `document.activeElement` resolves into the shadow roots registered with the bridge. Modal/Drawer focus traps then work and focus returns to the trigger; the host page's world (its `document`, listeners and `activeElement`) is untouched and still receives no keys.
+
+`createShadowSurfaceUi` and `createSatellite` call it for you. If you attach a shadow root of your own, call `bridgeFocus` on it before the UI inside mounts (pass `relayTab: true` if that root stops `keydown`). See [Known Limitations](#7-known-limitations) for the limits.
 
 ### Strict-CSP Compatibility
 
@@ -239,6 +253,7 @@ Popups, side panels, options pages, and tabs are pre-configured with `documentSu
 - Rem scale is calculated once during initialization. If the host dynamically alters its root font size subsequently, the extension UI will not automatically rescale.
 - The `MutationObserver` monitors the entire DOM tree. In highly dynamic Single Page Applications (SPAs), implement explicit teardown logic to optimize CPU utilization.
 - Event isolation is only guaranteed during the bubble phase.
+- The focus bridge relays only Tab (every other key stays fully isolated). `document` listeners receive a copy of the event (`isTrusted` is `false`, `target` is a private element); capture-phase `document` listeners, and keydown listeners registered before the first relaying shadow root is bridged, are not mirrored. All code in the content-script world sees `document.activeElement` resolved into the shadow roots.
 
 ---
 

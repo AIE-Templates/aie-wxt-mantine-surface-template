@@ -133,4 +133,4 @@ export default defineContentScript({
 
 fetch에는 `ctx.signal`을 전달하고 abort를 처리하세요. 요청 취소가 모든 비동기 작업의 종료를 뜻하지는 않으므로 await 이후에도 상태를 확인해야 합니다. start/stop이 겹치면 두 작업 모두 generation을 증가시키고 await 이후 검증합니다. 컨텍스트가 유효해도 개별 작업은 이미 대체되었을 수 있습니다.
 
-`await createShadowSurfaceUi(...)` 이후, `ui.mount()` 이전에도 무효화를 확인합니다. 기존 진입점처럼 `onRemove`를 React root의 언마운트에 연결하고 초기화 Promise 실패를 처리하세요. 별도의 생명주기 프레임워크는 필요하지 않습니다.
+`createShadowSurfaceUi`는 컨텍스트가 무효화된 뒤의 `mount()` / `autoMount()`를 무시하고, 무효화 시 UI를 제거합니다(`autoMount`도 중지). 그래도 기존 진입점처럼 `await` 뒤에는 `ctx.isInvalid`를 확인한 다음 다른 작업을 시작하세요. 또한 `onRemove`를 React root의 언마운트에 연결하고 초기화 Promise 실패를 처리하세요. 별도의 생명주기 프레임워크는 필요하지 않습니다.

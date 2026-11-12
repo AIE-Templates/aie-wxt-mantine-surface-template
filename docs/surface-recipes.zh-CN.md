@@ -97,7 +97,7 @@ export default defineContentScript({
 3. `ctx.addEventListener` 随 context 失效自动清理；storage watch、MutationObserver 等资源通过 `ctx.onInvalidated` 显式释放。
 4. “先 watch，再读取初始值”仍需 revision 检查，防止迟到的旧读取覆盖新 watch 事件。
 5. 请求可使用 `ctx.signal` 取消，但 await 后仍需检查状态。重叠的启动/停止操作还需要独立 generation，不能只检查 context 是否有效。
-6. `await createShadowSurfaceUi(...)` 后、`ui.mount()` 前检查失效状态，保留现有 `onRemove` 对 React root 的卸载，并处理初始化 promise 的失败。
+6. `createShadowSurfaceUi` 在 context 失效后会忽略 `mount()` / `autoMount()`，并在失效时移除 UI（同时停止 `autoMount`）。`await` 它之后仍应像现有入口那样先检查 `ctx.isInvalid`，再启动其他工作；保留现有 `onRemove` 对 React root 的卸载，并处理初始化 promise 的失败。
 
 下面的完整示例展示 storage 初始化、revision 防乱序以及 observer/watch 清理，不包含任何产品逻辑。
 

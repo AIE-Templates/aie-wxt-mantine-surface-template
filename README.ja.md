@@ -43,7 +43,7 @@ pnpm dev                 # Chrome: 拡張機能を読み込んだ状態の開発
 pnpm dev:firefox         # Firefox
 ```
 
-`pnpm dev` コマンドを実行すると、ページ内注入UIの動作確認用にローカルのテスト用ホストページも立ち上がります（バックグラウンドで `python3 -m http.server -d test-pages 8787` が実行され、`http://localhost:8787` で提供されます）。
+ページ内注入UIの動作を確認するには、`python3 -m http.server -d test-pages 8787` でローカルのテスト用ホストページを配信し、`http://localhost:8787/tw3-host.html` を開いてください。
 
 ### カスタマイズ設定
 
@@ -122,7 +122,14 @@ interface SurfaceEnv {
   rootElement: HTMLElement; // Mantine 変数のルートおよび data-mantine-* 属性のホスト要素
   portalTarget: HTMLElement; // フローティングレイヤー (Modal, Popover) の注入先ターゲット
   scale: number; // Rem の動的補正値 (16 / ホストの実際のrem基準値)。ドキュメント環境では常に 1。
-  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark';
+  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark' | ColorSchemeSource;
+  shadowRoot?: ShadowRoot; // shadow surface の場合のみ存在
+}
+
+// この Surface の解決済みカラースキームを供給する外部ストア（Surface 導入ガイドを参照）
+interface ColorSchemeSource {
+  getSnapshot: () => 'light' | 'dark';
+  subscribe: (listener: () => void) => () => void;
 }
 ```
 
@@ -134,10 +141,10 @@ Satellites は、ホストページに注入される軽量かつターゲット
 
 `createSatellite()` を使用して `SatelliteOutlet` にコンテンツをレンダリングします。アウトレットのマウントのライフサイクルは `renderSurfaceApp` によって自動的に管理されます。
 
-Satellites はデフォルトで `isolateEvents` 機構を備えており、拡張機能内でのユーザーのキーボード操作がホストページのショートカットを意図せずトリガーすることを防ぎます。内部の `MutationObserver` がDOMを監視し、Satelliteの正確な配置を維持します。
+Satellites はデフォルトで `isolateEvents` 機構を備えており、拡張機能内でのユーザーのキーボード操作がホストページのショートカットを意図せずトリガーすることを防ぎます。この隔離の下でも Mantine のフォーカストラップとフォーカス復帰は機能します（[キーボード隔離とフォーカス](#キーボード隔離とフォーカス)を参照）。内部の `MutationObserver` がDOMを監視し、Satelliteの正確な配置を維持します。
 
 - **自動アンマウント:** ホスト要素またはアンカー要素がDOMツリーから削除されると、コンポーネントは即座にアンマウントされます。
-- **シームレスな再配置:** アンカー要素がページ上で位置を変更した場合、コンポーネントは自動的に追従して再配置されます。
+- **シームレスな再配置:** アンカー要素がページ上で位置を変更した場合、コンポーネントは自動的に追従して再配置されます。複数の Satellite が同じアンカーと挿入位置を共有することもできます。
 
 スタイルは Constructable Stylesheets を通じて共有されます。静的 CSS は一度だけ解析され、ホストサーフェスとすべての satellite が同じシートを採用します。テーマ変更時に再解析されるのは小さな Mantine テーマ変数スタイルだけです。対象ブラウザがサポートしていない場合は、`<style>` タグの複製モードにフォールバックします。開発ビルドと本番ビルドのどちらも CSS を content script に埋め込むため、どちらのモードでもスタイルシートを取得しません。
 
@@ -151,9 +158,9 @@ Satellites はデフォルトで `isolateEvents` 機構を備えており、拡�
 
 ### 状態の同期
 
-すべての Surface 間における状態の同期は、WXTが提供する storage API によってシームレスに管理されます。ポップアップでテーマを変更すると、ページ内に注入されたUIもミリ秒単位でリアルタイムに更新されます。
+すべての Surface 間における状態の同期は、WXTが提供する storage API によってシームレスに管理されます。ポップアップでテーマを変更すると、ページ内に注入されたUIもミリ秒単位でリアルタイムに更新されます。各 Surface は購読を開始した後に設定をもう一度読み直すため、起動中に行われた変更も取りこぼしません。
 
-カスタムのリアクティブな状態を同期する場合は、`useExtStorage` フックを使用して `storage.defineItem` をラップしてください。その際、オブジェクトや配列のフォールバック値（初期値）には、不必要なレンダリングを防ぐために、モジュールレベルの安定した参照を使用してください。
+カスタムのリアクティブな状態を同期する場合は、`useExtStorage` フックを使用して `storage.defineItem` をラップしてください。その際、オブジェクトや配列のフォールバック値（初期値）には、不必要なレンダリングを防ぐために、モジュールレベルの安定した参照を使用してください。書き込みは楽観的に行われます。値は同期的に反映され（制御された入力欄のキャレットは飛びません）、書き込みの完了後に storage と突き合わせて整合させます。
 
 ### コンテキスト間の通信
 
@@ -168,15 +175,16 @@ Satellites はデフォルトで `isolateEvents` 機構を備えており、拡�
 
 Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承の特性により、予期せぬ動作を引き起こす場合があります。以下の戦略は、よくある境界事象に対する解決策です。
 
-| 課題                    | 症状                                                     | 解決策                                                                           |
-| ----------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| プロパティの継承        | ホストページのタイポグラフィが拡張機能のUIに影響を与える | `.aie-surface-root` に厳格なタイポグラフィのリセット (Reset) を適用する          |
-| `rem` サイズの漏洩      | ホストの `font-size` がUIを不均衡にスケーリングさせる    | `theme.scale = 16 / 実際のrem値` を設定し、ホストの基準値を動的に相殺する        |
-| `@property` の衝突      | TailwindのCSS変数がホスト側と競合する                    | 変数を `--tw-` から `--aie-tw-` にリネームする (`postcss.config.cjs` で設定済み) |
-| Tailwind `rem` のバグ   | ホストの `rem` の影響でTailwindの余白が崩れる            | `.aie-surface-root` に `calc(x * var(--mantine-scale, 1))` の補正係数を適用する  |
-| Modal の `lockScroll`   | Modalを開いた際、背後のホストページがフリーズする        | すべての Modal および Drawer に `lockScroll: false` を設定する                   |
-| `lightningcss` の精度   | 巨大な `z-index` 値がコンパイル時に誤って圧縮される      | `Z_INDEX` の定数を有効数字6桁以内に制限する                                      |
-| 外部CSSのオーバーライド | ホストの強力なCSSが拡張機能のカプセル化を突破する        | フレームワークの変数を `.aie-surface-root` のスコープ内に厳密に強制する          |
+| 課題                       | 症状                                                                                         | 解決策                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| プロパティの継承           | ホストページのタイポグラフィが拡張機能のUIに影響を与える                                     | `.aie-surface-root` に厳格なタイポグラフィのリセット (Reset) を適用する                   |
+| `rem` サイズの漏洩         | ホストの `font-size` がUIを不均衡にスケーリングさせる                                        | `theme.scale = 16 / 実際のrem値` を設定し、ホストの基準値を動的に相殺する                 |
+| `@property` の衝突         | TailwindのCSS変数がホスト側と競合する                                                        | 変数を `--tw-` から `--aie-tw-` にリネームする (`postcss.config.cjs` で設定済み)          |
+| Tailwind `rem` のバグ      | ホストの `rem` の影響でTailwindの余白が崩れる                                                | `.aie-surface-root` に `calc(x * var(--mantine-scale, 1))` の補正係数を適用する           |
+| Modal の `lockScroll`      | Modalを開いた際、背後のホストページがフリーズする                                            | すべての Modal および Drawer に `lockScroll: false` を設定する                            |
+| `lightningcss` の精度      | 巨大な `z-index` 値がコンパイル時に誤って圧縮される                                          | `Z_INDEX` の定数を有効数字6桁以内に制限する                                               |
+| 外部CSSのオーバーライド    | ホストの強力なCSSが拡張機能のカプセル化を突破する                                            | フレームワークの変数を `.aie-surface-root` のスコープ内に厳密に強制する                   |
+| キー隔離下のフォーカス管理 | Modal / Drawer のフォーカストラップが Tab に反応せず、閉じてもフォーカスがトリガーに戻らない | すべての Surface と Satellite に `bridgeFocus` (`surface/focus-bridge.ts`) を組み込み済み |
 
 ### CSS変数のセキュリティ戦略
 
@@ -184,6 +192,12 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 
 **Z-Index 階層:** `src/constants` の `Z_INDEX` 定数として定義され、`global.css` に `--<prefix>-z-*` CSS変数としてミラーリングされます（`src/constants/index.test.ts` のテストが両者の同期を保証します）。
 階層の順序: `floatUi < mainUi < modal < popover < notification < max`。
+
+### キーボード隔離とフォーカス
+
+Surface と Satellite は、ホストページのショートカットが発火しないよう、それぞれの shadow root で `keydown` / `keyup` / `keypress` を止めます。一方、Mantine は `document` 上でフォーカスを管理します。`useFocusTrap` と `useFocusReturn` は `document` の `keydown` を監視し、`document.activeElement` を参照しますが、shadow ツリーの外からは shadow ホスト要素しか見えません。`bridgeFocus(shadowRoot, { relayTab })` (`surface/focus-bridge.ts`) は、コンテンツスクリプトの isolated world の中でこの2つの隙間を埋めます。その world 自身の `document` オブジェクトの `addEventListener` / `removeEventListener` をラップし、`activeElement` を上書きすることで、Tab の `keydown` のコピーをその world の `document` keydown リスナーへ届け、`document.activeElement` をブリッジに登録済みの shadow root の内側まで解決します。これにより Modal / Drawer のフォーカストラップが機能し、閉じるとフォーカスがトリガーに戻ります。ホストページ側の world（その `document`、リスナー、`activeElement`）には影響がなく、キーイベントも一切届きません。
+
+`createShadowSurfaceUi` と `createSatellite` はこれを自動的に呼び出します。独自の shadow root を作成する場合は、内部の UI をマウントする前に `bridgeFocus` を呼び出してください（その root が `keydown` を止めるなら `relayTab: true` を渡します）。制限については[既知の制限事項](#7-既知の制限事項)を参照してください。
 
 ### 厳格な CSP との互換性
 
@@ -239,6 +253,7 @@ Shadow DOM は優れたカプセル化機能を提供しますが、CSSの継承
 - Rem の補正係数は、初期化時に一度だけ計算されます。その後、ホストページがルート要素のフォントサイズを動的に変更した場合、拡張機能のUIは自動的にリサイズされません。
 - `MutationObserver` はデフォルトでDOMツリー全体の変更を監視します。DOMの変更が頻繁に発生する複雑なシングルページアプリケーション (SPA) においては、CPU負荷を最適化するために明示的なティアダウン (teardown) ロジックを実装してください。
 - 提供されるイベント隔離機能は、現在バブリングフェーズ (bubble phase) でのみ有効です。
+- フォーカスブリッジが中継するのは Tab のみです（他のキーは完全に隔離されたままです）。`document` リスナーが受け取るのはイベントのコピーであり（`isTrusted` は `false`、`target` は非公開の要素）、キャプチャフェーズの `document` リスナーと、中継を行う最初の shadow root をブリッジする前に登録された keydown リスナーはミラーされません。コンテンツスクリプトの world 内のすべてのコードから、`document.activeElement` は shadow root の内側まで解決された値として見えます。
 
 ---
 

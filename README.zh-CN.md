@@ -43,7 +43,7 @@ pnpm dev                 # Chrome：启动已加载该扩展的开发版浏览�
 pnpm dev:firefox         # Firefox
 ```
 
-执行 `pnpm dev` 时，系统将同步启动一个本地测试宿主页（通过 `python3 -m http.server -d test-pages 8787` 在 `http://localhost:8787` 提供服务），以便于测试注入页面的 UI 组件。
+如需测试注入页面的 UI，请用 `python3 -m http.server -d test-pages 8787` 启动本地测试宿主页，然后打开 `http://localhost:8787/tw3-host.html`。
 
 ### 个性化配置
 
@@ -122,7 +122,14 @@ interface SurfaceEnv {
   rootElement: HTMLElement; // 承载 Mantine 变量与 data-mantine-* 属性的宿主节点
   portalTarget: HTMLElement; // 浮动层（如 Modal、Popover）的挂载目标节点
   scale: number; // Rem 动态补偿系数（16 / 宿主实际的 rem 基准值），Document 环境下恒定为 1。
-  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark';
+  colorSchemeStrategy: 'extension' | 'force-light' | 'force-dark' | ColorSchemeSource;
+  shadowRoot?: ShadowRoot; // 仅 Shadow Surface 提供
+}
+
+// 为该 Surface 提供已解析配色方案的外部数据源（参见 Surface 接入指南）
+interface ColorSchemeSource {
+  getSnapshot: () => 'light' | 'dark';
+  subscribe: (listener: () => void) => () => void;
 }
 ```
 
@@ -134,10 +141,10 @@ Satellite 是一种高度聚焦、极度轻量的宿主页面注入组件。宿�
 
 开发者可通过 `createSatellite()` 将组件映射至 `SatelliteOutlet` 中。Outlet 的实际挂载生命周期由 `renderSurfaceApp` 自动托管。
 
-Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘交互操作不会意外触发宿主页面的快捷键。内部通过 `MutationObserver` 监听 DOM 树，以维持 Satellite 的精准定位：
+Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘交互操作不会意外触发宿主页面的快捷键。Mantine 的焦点陷阱与焦点归还在这层隔离下依然有效（参见[键盘隔离与焦点](#键盘隔离与焦点)）。内部通过 `MutationObserver` 监听 DOM 树，以维持 Satellite 的精准定位：
 
 - **自动卸载：** 当宿主元素或锚点从 DOM 树中被移除时，组件将瞬间卸载。
-- **无缝重定位：** 若锚点在页面文档流中发生位置偏移，组件将自动跟随并重新对齐。
+- **无缝重定位：** 若锚点在页面文档流中发生位置偏移，组件将自动跟随并重新对齐。多个 Satellite 可以共用同一锚点与插入位置。
 
 组件样式通过 Constructable Stylesheets 在各 Shadow Root 间共享：静态 CSS 只解析一次，宿主 surface 和所有 satellite 采用同一个样式表；主题变化时只重新解析 Mantine 那段很小的主题变量样式。若目标浏览器暂不支持，系统将降级为 `<style>` 标签克隆模式。开发和生产构建都会把 CSS 内嵌进 content script，两种模式下都不会去请求样式表。
 
@@ -151,9 +158,9 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 ### 状态同步
 
-各 Surface 之间的状态同步依赖于 WXT 提供的 Storage API，表现出极高的可靠性。在弹出窗口中切换主题，页面内注入的 UI 将获得毫秒级的实时响应。
+各 Surface 之间的状态同步依赖于 WXT 提供的 Storage API，表现出极高的可靠性。在弹出窗口中切换主题，页面内注入的 UI 将获得毫秒级的实时响应。每个 Surface 在订阅之后还会补读一次偏好，启动期间发生的变更不会丢失。
 
-若需同步自定义的响应式状态，请使用 `useExtStorage` 包装跨实例的 `storage.defineItem` 调用。请注意：配置对象或数组的后备默认值（Fallback）必须采用稳定的模块级引用，以避免不必要的渲染触发。
+若需同步自定义的响应式状态，请使用 `useExtStorage` 包装跨实例的 `storage.defineItem` 调用。请注意：配置对象或数组的后备默认值（Fallback）必须采用稳定的模块级引用，以避免不必要的渲染触发。写入采用乐观更新：值会同步生效（受控输入框的光标不会跳动），写入完成后再与 storage 对账。
 
 ### 上下文通信
 
@@ -168,15 +175,16 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 尽管 Shadow DOM 提供了卓越的隔离能力，但 CSS 的部分继承特性仍可能带来非预期的影响。以下为常见边界问题的应对方案：
 
-| 异常现象                | 临床表现                                      | 解决方案                                                                         |
-| ----------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| 属性穿透继承            | 宿主页面的字体设定影响了扩展 UI               | 在 `.aie-surface-root` 容器层执行严格的排版重置（Reset）                         |
-| `rem` 基准泄漏          | 宿主异常的 `font-size` 导致扩展 UI 比例失调   | 设定 `theme.scale = 16 / 宿主实际 rem 值` 进行逆向动态补偿                       |
-| `@property` 冲突        | Tailwind CSS 变量与宿主页面定义的变量重名     | 在 `postcss.config.cjs` 中将 `--tw-` 统一转换为 `--aie-tw-` 前缀                 |
-| Tailwind `rem` 适配     | Tailwind 的间距计算因宿主 `rem` 突变而失效    | 在 `.aie-surface-root` 容器强行应用 `calc(x * var(--mantine-scale, 1))` 修正系数 |
-| Modal `lockScroll` 失效 | 开启 Modal 时意外冻结了底层的宿主页面         | 在所有的 Modal 及 Drawer 组件上强制配置 `lockScroll: false`                      |
-| `lightningcss` 精度缺陷 | 超大数值的 `z-index` 在编译阶段被异常折叠压缩 | 确保 `Z_INDEX` 常量的有效数字严格控制在 6 位以内                                 |
-| 外部文档样式高优覆盖    | 宿主页面的高权重 CSS 强行覆盖了扩展样式       | 将 UI 框架的 CSS 变量严格约束在 `.aie-surface-root` 作用域内                     |
+| 异常现象                | 临床表现                                                        | 解决方案                                                                         |
+| ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 属性穿透继承            | 宿主页面的字体设定影响了扩展 UI                                 | 在 `.aie-surface-root` 容器层执行严格的排版重置（Reset）                         |
+| `rem` 基准泄漏          | 宿主异常的 `font-size` 导致扩展 UI 比例失调                     | 设定 `theme.scale = 16 / 宿主实际 rem 值` 进行逆向动态补偿                       |
+| `@property` 冲突        | Tailwind CSS 变量与宿主页面定义的变量重名                       | 在 `postcss.config.cjs` 中将 `--tw-` 统一转换为 `--aie-tw-` 前缀                 |
+| Tailwind `rem` 适配     | Tailwind 的间距计算因宿主 `rem` 突变而失效                      | 在 `.aie-surface-root` 容器强行应用 `calc(x * var(--mantine-scale, 1))` 修正系数 |
+| Modal `lockScroll` 失效 | 开启 Modal 时意外冻结了底层的宿主页面                           | 在所有的 Modal 及 Drawer 组件上强制配置 `lockScroll: false`                      |
+| `lightningcss` 精度缺陷 | 超大数值的 `z-index` 在编译阶段被异常折叠压缩                   | 确保 `Z_INDEX` 常量的有效数字严格控制在 6 位以内                                 |
+| 外部文档样式高优覆盖    | 宿主页面的高权重 CSS 强行覆盖了扩展样式                         | 将 UI 框架的 CSS 变量严格约束在 `.aie-surface-root` 作用域内                     |
+| 按键隔离下的焦点管理    | Modal / Drawer 的焦点陷阱不响应 Tab，关闭后焦点无法回到触发元素 | 所有 Surface 与 Satellite 均已接入 `bridgeFocus`（`surface/focus-bridge.ts`）    |
 
 ### CSS 变量安全策略
 
@@ -184,6 +192,12 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 
 **Z-Index 层级规范：** 以 `Z_INDEX` 常量定义于 `src/constants`，并在 `global.css` 中镜像为 `--<prefix>-z-*` CSS 变量（`src/constants/index.test.ts` 中的测试确保二者同步）。
 层级秩序为：`floatUi < mainUi < modal < popover < notification < max`。
+
+### 键盘隔离与焦点
+
+Surface 与 Satellite 会在各自的 shadow root 上拦截 `keydown` / `keyup` / `keypress`，避免触发宿主页面的快捷键。但 Mantine 在 `document` 上管理焦点：`useFocusTrap` 与 `useFocusReturn` 在那里监听 `keydown` 并读取 `document.activeElement`，而在 shadow 树之外，后者只会返回 shadow 宿主元素。`bridgeFocus(shadowRoot, { relayTab })`（`surface/focus-bridge.ts`）在内容脚本所在的 isolated world 内补上这两处缺口：它包装该 world 自身 `document` 对象的 `addEventListener` / `removeEventListener` 并覆盖其 `activeElement`，把每次 Tab `keydown` 的副本转交给该 world 的 `document` keydown 监听器，并让 `document.activeElement` 解析到已在桥接中登记的 shadow root 内部。这样 Modal / Drawer 的焦点陷阱可以正常工作，关闭后焦点回到触发元素；宿主页面所在的 world（它的 `document`、监听器与 `activeElement`）不受影响，依然收不到任何按键。
+
+`createShadowSurfaceUi` 与 `createSatellite` 已自动调用它。如果自行创建 shadow root，请在其中的 UI 挂载之前对它调用 `bridgeFocus`（若该 root 拦截了 `keydown`，传入 `relayTab: true`）。限制见[已知局限性](#7-已知局限性)。
 
 ### 严格 CSP 兼容性
 
@@ -239,6 +253,7 @@ Satellites 内置 `isolateEvents` 机制，确保用户在扩展 UI 内的键盘
 - Rem 补偿系数在注入生命周期内仅计算一次。若宿主页面在运行时动态修改其根节点的字体尺寸，扩展 UI 不会自动响应其缩放重绘。
 - `MutationObserver` 默认监听整棵 DOM 树的变更事件。在 DOM 频繁突变的重型单页面应用（SPA）中，建议开发者编写显式的资源销毁（Teardown）逻辑，以优化 CPU 性能开销。
 - 本框架提供的事件隔离机制目前仅在事件的冒泡阶段（Bubble Phase）生效。
+- 焦点桥接只转发 Tab（其余按键保持完全隔离）。`document` 监听器收到的是事件副本（`isTrusted` 为 `false`，`target` 是一个私有元素）；捕获阶段的 `document` 监听器，以及在首个负责转发的 shadow root 接入桥接之前注册的 keydown 监听器，不会被镜像。内容脚本 world 中的所有代码读到的 `document.activeElement` 都会解析到 shadow root 内部。
 
 ---
 
