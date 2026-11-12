@@ -105,8 +105,12 @@ class SatelliteRegistry {
   private listeners = new Set<() => void>();
   private sheets: CSSStyleSheet[] = [];
   private cssTexts: string[] = [];
-  /** Sheets parsed from the style source's <style> elements, by text, for reuse across refreshes. */
-  private parsed = new Map<string, CSSStyleSheet>();
+  /**
+   * Sheets parsed from the style source's <style> elements, by text, for reuse
+   * across refreshes. A list per text: identical <style>s each keep their own
+   * sheet so repeats stay in the cascade at their own position.
+   */
+  private parsed = new Map<string, CSSStyleSheet[]>();
   private styleSource: ShadowRoot | null = null;
   private observer: MutationObserver | null = null;
   private checkScheduled = false;
@@ -156,15 +160,18 @@ class SatelliteRegistry {
       try {
         const previous = this.parsed;
         this.parsed = new Map();
-        for (const text of this.cssTexts) {
-          let sheet = previous.get(text);
+        // Built in the host's <style> order (the cache only supplies objects).
+        const inTree = this.cssTexts.map((text) => {
+          const parsedSoFar = this.parsed.get(text) ?? [];
+          let sheet = previous.get(text)?.[parsedSoFar.length];
           if (!sheet) {
             sheet = new CSSStyleSheet();
             sheet.replaceSync(text);
           }
-          this.parsed.set(text, sheet);
-        }
-        this.sheets = [...this.parsed.values(), ...source.adoptedStyleSheets];
+          this.parsed.set(text, [...parsedSoFar, sheet]);
+          return sheet;
+        });
+        this.sheets = [...inTree, ...source.adoptedStyleSheets];
       } catch (error) {
         // Constructable sheets can be missing or unusable (e.g. restrictive
         // environments) — degrade to per-root <style> clones.

@@ -161,3 +161,52 @@ it('tears satellites down with the surface', async () => {
   expect(document.querySelectorAll(SATELLITE_TAG)).toHaveLength(0);
   expect(() => satellite.destroy()).not.toThrow();
 });
+
+it('keeps repeated host <style>s at their own cascade position in satellites', async () => {
+  let env: SurfaceEnv | undefined;
+  const { ui } = await surface(
+    vi.fn((container: HTMLElement, surfaceEnv: SurfaceEnv) => {
+      env = surfaceEnv;
+      return container;
+    })
+  );
+  ui.mount();
+  // A → B → A, same specificity: the host resolves to A, so must satellites.
+  const red = '.probe { color: red; }';
+  const blue = '.probe { color: blue; }';
+  for (const text of [red, blue, red]) {
+    const style = document.createElement('style');
+    style.textContent = text;
+    ui.shadow.insertBefore(style, ui.uiContainer);
+  }
+  const anchor = document.createElement('p');
+  document.body.append(anchor);
+  const satellite = createSatellite(anchor, null);
+  const tree = (primaryColor: string) => (
+    <SurfaceProvider env={env!}>
+      <MantineProvider theme={{ primaryColor }} cssVariablesSelector={`.${SURFACE_ROOT_CLASS}`}>
+        <SatelliteOutlet />
+      </MantineProvider>
+    </SurfaceProvider>
+  );
+  const view = render(tree('blue'), { container: env!.rootElement });
+  // cssText re-serializes rules, so compare the probe rules only (whitespace-insensitive).
+  const normalize = (texts: string[]) => texts.map((text) => text.replace(/\s+/g, ''));
+  const probes = () =>
+    normalize([...satellite.hostElement.shadowRoot!.adoptedStyleSheets].map(staticText)).filter((text) =>
+      text.startsWith('.probe')
+    );
+  await waitFor(() => expect(probes()).toEqual(normalize([red, blue, red])));
+  // ...and they precede the adopted static sheet, as in the host.
+  expect(satellite.hostElement.shadowRoot!.adoptedStyleSheets.at(-1)).toBe(ui.shadow.adoptedStyleSheets[0]);
+
+  // A refresh reuses parsed sheets without collapsing the repeat.
+  const before = [...satellite.hostElement.shadowRoot!.adoptedStyleSheets];
+  view.rerender(tree('red'));
+  await waitFor(() => expect([...satellite.hostElement.shadowRoot!.adoptedStyleSheets]).not.toEqual(before));
+  expect(probes()).toEqual(normalize([red, blue, red]));
+  const after = satellite.hostElement.shadowRoot!.adoptedStyleSheets;
+  const probeSheets = after.filter((sheet) => staticText(sheet).replace(/\s+/g, '').startsWith('.probe'));
+  expect(new Set(probeSheets).size).toBe(3);
+  view.unmount();
+});
