@@ -107,4 +107,19 @@ describe('extStorageColorSchemeManager', () => {
     expect(mgr.get('light')).toBe('light');
     read.mockRestore();
   });
+
+  it('does not write values received from storage back (no echo loop between surfaces)', async () => {
+    const write = vi.spyOn(visualColorSchemeStorage, 'setValue');
+    // Mantine subscribes with its own setter, which calls manager.set.
+    const surfaces = [extStorageColorSchemeManager('light'), extStorageColorSchemeManager('light')];
+    for (const mgr of surfaces) mgr.subscribe((value) => mgr.set(value));
+    await flush();
+    surfaces[0]!.set('dark');
+    surfaces[0]!.set('light'); // two changes before the first echo lands
+    for (let i = 0; i < 10; i++) await flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(await visualColorSchemeStorage.getValue()).toBe('light');
+    expect(surfaces.map((mgr) => mgr.get('dark'))).toEqual(['light', 'light']);
+    write.mockRestore();
+  });
 });
