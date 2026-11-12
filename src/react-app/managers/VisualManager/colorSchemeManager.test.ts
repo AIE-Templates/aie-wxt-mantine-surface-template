@@ -65,4 +65,30 @@ describe('extStorageColorSchemeManager', () => {
 
     expect(onUpdate).not.toHaveBeenCalled();
   });
+
+  it('subscribe catches up on a change made after the initial read', async () => {
+    const mgr = extStorageColorSchemeManager('light'); // seeded from an earlier read
+    await visualColorSchemeStorage.setValue('dark'); // before anyone subscribed
+    const onUpdate = vi.fn();
+    mgr.subscribe(onUpdate);
+    await flush();
+    expect(onUpdate).toHaveBeenCalledWith('dark');
+    expect(mgr.get('light')).toBe('dark');
+  });
+
+  it('a local set during the catch-up read wins over the read', async () => {
+    let finish: (value: 'light') => void = () => {};
+    const read = vi
+      .spyOn(visualColorSchemeStorage, 'getValue')
+      .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const mgr = extStorageColorSchemeManager('light');
+    const onUpdate = vi.fn();
+    mgr.subscribe(onUpdate);
+    mgr.set('dark');
+    finish('light');
+    await flush();
+    expect(onUpdate).not.toHaveBeenCalledWith('light');
+    expect(mgr.get('light')).toBe('dark');
+    read.mockRestore();
+  });
 });

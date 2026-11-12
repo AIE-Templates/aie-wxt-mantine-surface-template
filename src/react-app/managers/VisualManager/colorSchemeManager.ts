@@ -15,10 +15,14 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
   // last known value in a closure, seeded from the hydrated initial state.
   let currentColorScheme = initialColorScheme;
   let unwatch: (() => void) | undefined;
+  // Bumped by every newer source of truth (watch event, local set, new or
+  // ended subscription) so a catch-up read cannot overwrite it.
+  let revision = 0;
 
   return {
     get: (defaultValue) => currentColorScheme ?? defaultValue,
     set: (value) => {
+      revision++;
       currentColorScheme = value;
       visualColorSchemeStorage.setValue(value).catch((error) => {
         console.warn('[VisualManager] failed to persist color scheme', error);
@@ -29,11 +33,26 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
       // (StrictMode double-effects) must not leak the previous watcher.
       unwatch?.();
       unwatch = visualColorSchemeStorage.watch((value) => {
+        revision++;
         currentColorScheme = value;
         onUpdate(value);
       });
+      // The initial value was read before this subscription existed; catch
+      // up on a change another surface made in between.
+      const readRevision = ++revision;
+      visualColorSchemeStorage
+        .getValue()
+        .then((value) => {
+          if (revision !== readRevision || value === currentColorScheme) return;
+          currentColorScheme = value;
+          onUpdate(value);
+        })
+        .catch((error) => {
+          console.warn('[VisualManager] failed to read color scheme', error);
+        });
     },
     unsubscribe: () => {
+      revision++;
       unwatch?.();
       unwatch = undefined;
     },

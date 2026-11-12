@@ -11,7 +11,7 @@ import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
 import { SURFACE_ROOT_CLASS } from '@/constants';
 import { useVisual } from '../context';
 import VisualManagerRegistry from '../registry';
-import { visualColorSchemeStorage, visualDirectionStorage } from '../storages';
+import { visualColorSchemeStorage, visualDirectionStorage, visualPrimaryColorStorage } from '../storages';
 import MantineRegistry from './MantineRegistry';
 
 vi.mock('@/react-app/theme', async () => {
@@ -221,4 +221,51 @@ it.each([
   await waitFor(async () => expect(await visualColorSchemeStorage.getValue()).toBe('dark'));
   // The surface keeps showing its forced/external scheme.
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe(visible);
+});
+
+it('catches up on preferences changed between the initial read and mount', async () => {
+  const env = shadowEnv();
+  // bootstrap read light/ltr/blue; another surface then changed all three.
+  await visualColorSchemeStorage.setValue('dark');
+  await visualDirectionStorage.setValue('rtl');
+  await visualPrimaryColorStorage.setValue('red');
+  function Probe() {
+    const visual = useVisual();
+    return <span data-testid="primary">{visual.primaryColor}</span>;
+  }
+  const view = render(
+    <SurfaceProvider env={env}>
+      <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+        <Probe />
+      </VisualManagerRegistry>
+    </SurfaceProvider>,
+    { container: env.rootElement }
+  );
+  await waitFor(() => expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark'));
+  expect(env.rootElement.getAttribute('dir')).toBe('rtl');
+  expect(view.getByTestId('primary').textContent).toBe('red');
+});
+
+it('a local change during the catch-up read wins over the read', async () => {
+  const env = shadowEnv();
+  let finish: (value: 'ltr') => void = () => {};
+  const read = vi
+    .spyOn(visualDirectionStorage, 'getValue')
+    .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+  function Toggle() {
+    const visual = useVisual();
+    return <button onClick={() => visual.setDirection('rtl')}>rtl</button>;
+  }
+  const view = render(
+    <SurfaceProvider env={env}>
+      <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+        <Toggle />
+      </VisualManagerRegistry>
+    </SurfaceProvider>,
+    { container: env.rootElement }
+  );
+  fireEvent.click(view.getByText('rtl'));
+  await act(async () => finish('ltr'));
+  expect(env.rootElement.getAttribute('dir')).toBe('rtl');
+  read.mockRestore();
 });

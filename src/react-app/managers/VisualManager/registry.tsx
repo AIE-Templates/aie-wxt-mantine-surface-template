@@ -7,7 +7,7 @@
  * colorSchemeManager; direction/primary color are watched here).
  */
 
-import { useEffect, useState, type PropsWithChildren } from 'react';
+import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import MantineRegistry from './components/MantineRegistry';
 import VisualContextProvider from './context';
@@ -77,22 +77,56 @@ export interface VisualManagerRegistryProps extends PropsWithChildren {
   persistentState: VisualPersistentState;
 }
 
+type VisualKey = keyof VisualPersistentState;
+
 const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegistryProps) => {
   const [state, setState] = useState(persistentState);
+  // Per preference: bumped by every newer value (watch event, local change)
+  // so a catch-up read cannot overwrite it.
+  const revisions = useRef<Record<VisualKey, number>>({ colorScheme: 0, direction: 0, primaryColor: 0 });
+  const update = <K extends VisualKey>(key: K, value: VisualPersistentState[K]) => {
+    revisions.current[key]++;
+    setState((s) => (s[key] === value ? s : { ...s, [key]: value }));
+  };
 
   // Cross-surface sync: another surface (popup, sidepanel, in-page UI)
   // changed a preference → storage watch fires here → this surface follows.
+  // `persistentState` was read before this subscription existed, so read once
+  // more after subscribing to catch a change made in between.
   useEffect(() => {
+    let active = true;
+    const follow = <K extends VisualKey>(
+      key: K,
+      item: {
+        watch: (callback: (value: VisualPersistentState[K]) => void) => () => void;
+        getValue: () => Promise<VisualPersistentState[K]>;
+      }
+    ) => {
+      const unwatch = item.watch((value) => update(key, value));
+      const readRevision = revisions.current[key];
+      item
+        .getValue()
+        .then((value) => {
+          if (active && revisions.current[key] === readRevision) update(key, value);
+        })
+        .catch((error) => {
+          console.warn(`[VisualManager] failed to read ${key}`, error);
+        });
+      return unwatch;
+    };
     const unwatchers = [
-      visualColorSchemeStorage.watch((colorScheme) => setState((s) => ({ ...s, colorScheme }))),
-      visualDirectionStorage.watch((direction) => setState((s) => ({ ...s, direction }))),
-      visualPrimaryColorStorage.watch((primaryColor) => setState((s) => ({ ...s, primaryColor }))),
+      follow('colorScheme', visualColorSchemeStorage),
+      follow('direction', visualDirectionStorage),
+      follow('primaryColor', visualPrimaryColorStorage),
     ];
-    return () => unwatchers.forEach((unwatch) => unwatch());
+    return () => {
+      active = false;
+      unwatchers.forEach((unwatch) => unwatch());
+    };
   }, []);
 
   const setDirection = (direction: VisualDirection) => {
-    setState((s) => ({ ...s, direction }));
+    update('direction', direction);
     visualDirectionStorage.setValue(direction).catch((error) => {
       console.warn('[VisualManager] failed to persist direction', error);
     });
@@ -109,9 +143,9 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
         colorScheme={state.colorScheme}
         direction={state.direction}
         primaryColor={state.primaryColor}
-        onColorSchemeChange={(colorScheme) => setState((s) => ({ ...s, colorScheme }))}
+        onColorSchemeChange={(colorScheme) => update('colorScheme', colorScheme)}
         onDirectionChange={setDirection}
-        onPrimaryColorChange={(primaryColor) => setState((s) => ({ ...s, primaryColor }))}
+        onPrimaryColorChange={(primaryColor) => update('primaryColor', primaryColor)}
       >
         {children}
       </VisualStateBridge>
