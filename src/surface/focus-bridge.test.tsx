@@ -5,13 +5,14 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { SURFACE_ROOT_CLASS } from '@/constants';
 import { SurfaceProvider } from './context';
 import type { SurfaceEnv } from './defs';
-import { relayTabKeydown } from './focus-trap';
+import { bridgeFocus } from './focus-bridge';
 import { createSatellite, SatelliteOutlet } from './satellite';
 
 /**
  * Real Mantine components inside an isolating shadow root: the expectations
- * are Mantine's own FocusTrap behaviour (use-focus-trap/scope-tab), which the
- * relay must reproduce without re-implementing it.
+ * are Mantine's own behaviour on a normal page (use-focus-trap/scope-tab,
+ * use-focus-return), which the bridge must reproduce without re-implementing
+ * it.
  */
 
 afterEach(() => {
@@ -19,18 +20,16 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function shadowRootWithIsolation(isolate = true) {
+function surfaceShadowRoot(isolate = true) {
   const host = document.createElement('div');
   document.body.append(host);
   const shadowRoot = host.attachShadow({ mode: 'open' });
   const rootElement = document.createElement('div');
   rootElement.className = SURFACE_ROOT_CLASS;
   shadowRoot.append(rootElement);
-  if (isolate) {
-    // As WXT / isolated-element applies it for the host surface.
-    shadowRoot.addEventListener('keydown', (event) => event.stopPropagation());
-    relayTabKeydown(shadowRoot);
-  }
+  // As WXT / isolated-element applies it for the host surface.
+  if (isolate) shadowRoot.addEventListener('keydown', (event) => event.stopPropagation());
+  bridgeFocus(shadowRoot, { relayTab: isolate });
   return { shadowRoot, rootElement };
 }
 
@@ -46,7 +45,7 @@ function tab(shadowRoot: ShadowRoot, shiftKey = false) {
 const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 async function mount(ui: ReactNode, { isolate = true } = {}) {
-  const { shadowRoot, rootElement } = shadowRootWithIsolation(isolate);
+  const { shadowRoot, rootElement } = surfaceShadowRoot(isolate);
   const env: SurfaceEnv = {
     kind: 'shadow',
     shadowRoot,
@@ -251,7 +250,7 @@ it('relays only Tab, once, and lets nothing reach the host page', async () => {
 it('does not double-deliver where keydown is not isolated', async () => {
   const onDocument = vi.fn();
   // Wrap document.addEventListener first, as an isolating surface would have.
-  shadowRootWithIsolation();
+  surfaceShadowRoot();
   const { byId, tab } = await mount(<button id="plain">plain</button>, { isolate: false });
   document.addEventListener('keydown', onDocument);
   try {
@@ -261,4 +260,108 @@ it('does not double-deliver where keydown is not isolated', async () => {
   } finally {
     document.removeEventListener('keydown', onDocument);
   }
+});
+
+/** Past useFocusReturn's 10ms timer. */
+const focusReturned = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 30)));
+
+function modalWithTrigger(withinPortal = true) {
+  const controls = { setOpened: (_opened: boolean) => {} };
+  function Toggle() {
+    const [opened, setOpened] = useState(false);
+    controls.setOpened = setOpened;
+    return (
+      <>
+        <button id="other">other</button>
+        <button id="trigger">trigger</button>
+        <Modal opened={opened} onClose={() => {}} withCloseButton={false} withinPortal={withinPortal}>
+          <button id="inside">inside</button>
+        </Modal>
+      </>
+    );
+  }
+  return { ui: <Toggle />, controls };
+}
+
+async function openAndClose(shadowRoot: ShadowRoot, controls: { setOpened: (opened: boolean) => void }) {
+  const trigger = shadowRoot.getElementById('trigger')!;
+  trigger.focus();
+  act(() => controls.setOpened(true));
+  await settle();
+  expect(shadowRoot.activeElement).toBe(shadowRoot.getElementById('inside'));
+  act(() => controls.setOpened(false));
+  await focusReturned();
+  return trigger;
+}
+
+it('returns focus to the trigger when a Modal closes', async () => {
+  const { ui, controls } = modalWithTrigger();
+  const { shadowRoot } = await mount(ui);
+  const trigger = await openAndClose(shadowRoot, controls);
+  expect(shadowRoot.activeElement).toBe(trigger);
+  expect(document.activeElement).toBe(trigger);
+});
+
+it('returns focus to the trigger without keyboard isolation too', async () => {
+  const { ui, controls } = modalWithTrigger();
+  const { shadowRoot } = await mount(ui, { isolate: false });
+  const trigger = await openAndClose(shadowRoot, controls);
+  expect(shadowRoot.activeElement).toBe(trigger);
+});
+
+it('returns focus to the trigger inside a satellite', async () => {
+  const anchor = document.createElement('p');
+  document.body.append(anchor);
+  const { ui, controls } = modalWithTrigger(false);
+  const satellite = createSatellite(anchor, ui);
+  try {
+    await mount(null);
+    const shadowRoot = satellite.hostElement.shadowRoot!;
+    const trigger = await openAndClose(shadowRoot, controls);
+    expect(shadowRoot.activeElement).toBe(trigger);
+  } finally {
+    satellite.destroy();
+  }
+});
+
+it('resolves document.activeElement inside our shadow roots only', async () => {
+  const { shadowRoot, byId } = await mount(<button id="plain">plain</button>);
+  const inSurface = byId('plain');
+  inSurface.focus();
+  expect(document.activeElement).toBe(inSurface);
+
+  // Nested, closed: the reference is ours even though `host.shadowRoot` is null.
+  const nestedHost = document.createElement('div');
+  shadowRoot.append(nestedHost);
+  const nested = nestedHost.attachShadow({ mode: 'closed' });
+  const inNested = nested.appendChild(document.createElement('button'));
+  inNested.focus();
+  expect(document.activeElement).toBe(nestedHost);
+  bridgeFocus(nested);
+  expect(document.activeElement).toBe(inNested);
+
+  // A host-page component: its shadow root is never entered, in the light
+  // DOM or inside our own tree.
+  for (const parent of [document.body, shadowRoot]) {
+    const pageHost = document.createElement('div');
+    parent.append(pageHost);
+    const inPage = pageHost.attachShadow({ mode: 'open' }).appendChild(document.createElement('button'));
+    inPage.focus();
+    expect(document.activeElement).toBe(pageHost);
+  }
+});
+
+it('leaves document.activeElement native outside our shadow roots', async () => {
+  const { shadowRoot } = await mount(<button id="plain">plain</button>);
+  const input = document.body.appendChild(document.createElement('input'));
+  input.focus();
+  expect(document.activeElement).toBe(input);
+  input.blur();
+  expect(document.activeElement).toBe(document.body);
+  // Our host itself focused, nothing focused inside: still the host.
+  const host = shadowRoot.host as HTMLElement;
+  host.tabIndex = 0;
+  host.focus();
+  expect(shadowRoot.activeElement).toBeNull();
+  expect(document.activeElement).toBe(host);
 });

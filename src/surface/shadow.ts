@@ -16,7 +16,7 @@
 import { createShadowRootUi } from '#imports';
 import { PROJECT_PREFIX, SURFACE_ROOT_CLASS } from '@/constants';
 import type { ColorSchemeStrategy, SurfaceEnv } from './defs';
-import { relayTabKeydown } from './focus-trap';
+import { bridgeFocus } from './focus-bridge';
 import { resolveIsolatedEvents } from './isolate-events';
 import { releaseSatellites } from './satellite';
 
@@ -129,8 +129,9 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
       const rootElement = document.createElement('div');
       rootElement.classList.add(SURFACE_ROOT_CLASS);
       container.append(rootElement);
-      // Keyboard isolation hides Tab from Mantine's document-level focus trap.
-      if (resolveIsolatedEvents(options.isolateEvents).includes('keydown')) relayTabKeydown(shadowRoot);
+      // Mantine handles focus on `document`, which neither sees the focused
+      // element in here nor the Tab keys isolation stops; see surface/focus-bridge.
+      bridgeFocus(shadowRoot, { relayTab: resolveIsolatedEvents(options.isolateEvents).includes('keydown') });
 
       const env: SurfaceEnv = {
         kind: 'shadow',

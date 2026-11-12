@@ -35,7 +35,7 @@ import { useComputedColorScheme, useDirection, useMantineTheme } from '@mantine/
 import { createPortal } from 'react-dom';
 import { SATELLITE_TAG, SURFACE_ROOT_CLASS } from '@/constants';
 import { useSurface } from './context';
-import { relayTabKeydown } from './focus-trap';
+import { bridgeFocus } from './focus-bridge';
 import { resolveIsolatedEvents } from './isolate-events';
 
 export interface SatelliteHandle {
@@ -249,11 +249,12 @@ class SatelliteRegistry {
     // bubble out and trigger HOST-page keyboard shortcuts (YouTube/Gmail/…).
     // Attaching on the shadowRoot catches everything in the subtree before it
     // crosses the boundary; listeners are GC'd with the host element on destroy.
-    for (const type of resolveIsolatedEvents(options?.isolateEvents)) {
+    const isolated = resolveIsolatedEvents(options?.isolateEvents);
+    for (const type of isolated) {
       shadowRoot.addEventListener(type, (event) => event.stopPropagation());
-      // Mantine's focus trap listens on document; see surface/focus-trap.
-      if (type === 'keydown') relayTabKeydown(shadowRoot);
     }
+    // Mantine handles focus on `document`; see surface/focus-bridge.
+    bridgeFocus(shadowRoot, { relayTab: isolated.includes('keydown') });
     const rootElement = document.createElement('div');
     rootElement.classList.add(SURFACE_ROOT_CLASS);
     shadowRoot.append(rootElement);
