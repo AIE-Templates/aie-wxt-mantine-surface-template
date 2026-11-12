@@ -16,7 +16,7 @@
 
 本模板提供绝对的 CSS 隔离保障：扩展样式不会污染宿主页面，同时宿主页面的全局样式也无法干扰扩展的正常显示。
 
-**技术栈：** WXT 0.20、`@webext-core`（消息通信与 RPC 服务）、Mantine 9.3（原生 CSS 变量，完全移除 Emotion 依赖）、Tailwind 4（严格的命名空间隔离）以及 CSS Modules。
+**技术栈：** WXT 0.21、`@webext-core`（消息通信与 RPC 服务）、Mantine 9.3（原生 CSS 变量，完全移除 Emotion 依赖）、Tailwind 4（严格的命名空间隔离）以及 CSS Modules。
 
 ## 为什么选择这个模板？
 
@@ -33,6 +33,10 @@
 
 ## 1. 快速开始
 
+需要 Node.js 22.12+ 和 pnpm 10.7.1。WXT 0.21 使用 Vite 8，并显式依赖 `web-ext` 以自动启动浏览器。生成的 TypeScript 配置保留新版严格检查。
+
+Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。输出的 CSS 文件用于审计，不会加载到宿主页面；运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
+
 ```bash
 pnpm install
 pnpm dev                 # Chrome：启动已加载该扩展的开发版浏览器
@@ -47,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **配置 Manifest：** 在 `wxt.config.ts` 的 `manifest` 函数中调整 `name` 与 `permissions`。请遵循 Manifest V3（MV3）标准编写，WXT 会在构建时自动处理针对 Firefox 的降级转换。
 3. **固定扩展 ID（可选）：** 复制 `.env.example` 为 `.env` 文件，并设定 `WXT_EXTENSION_KEY`。此举可通过环境变量安全注入 Manifest 的 `key`，避免硬编码。仅以 `WXT_` 或 `VITE_` 开头的环境变量会被打包入构建产物。请始终将敏感信息留存于 `.env` 中，切勿提交至版本库。
 4. **添加 UI 界面：** `src/entrypoints/` 目录下的每个入口文件均负责挂载 `src/react-app/apps/` 中的一个 React 应用。若需新增界面，只需复制现有应用目录并配置对应的入口文件即可。
-5. **收窄 Content Script 作用域：** 演示用 content script 会匹配所有 `http`/`https` 页面（见 `src/entrypoints/content/index.tsx` 的 `matches`），而 content script 无法代码分割，因此每个页面都会被注入完整的 Mantine + React 产物（约 550 kB JS + 260 kB CSS）。作为演示没有问题；实际产品应将 `matches` 收窄到真正的目标站点，或保持宽匹配但延迟挂载（用户操作时再动态 import UI）。过宽的宿主权限也会在应用商店审核中招致额外审查。
+5. **收窄 Content Script 作用域：** 演示用 content script 会匹配所有 `http`/`https` 页面（见 `src/entrypoints/content/index.tsx` 的 `matches`），而 content script 无法代码分割，因此每个页面都会被注入完整的 Mantine + React 产物（约 802 kB JS，已包含 CSS）。作为演示没有问题；实际产品应将 `matches` 收窄到真正的目标站点，或保持宽匹配但延迟挂载（用户操作时再动态 import UI）。过宽的宿主权限也会在应用商店审核中招致额外审查。
 
 ### 构建与发布
 

@@ -16,7 +16,7 @@ A production-ready boilerplate for building browser extension user interfaces. W
 
 It guarantees comprehensive CSS isolation: your extension styles will not affect the host page, and the host page's CSS will not interfere with your extension.
 
-**Technology Stack:** WXT 0.20, `@webext-core` (messaging and proxy-service), Mantine 9.3 (native CSS variables, no Emotion dependency), Tailwind 4 (strictly namespaced), and CSS Modules.
+**Technology Stack:** WXT 0.21, `@webext-core` (messaging and proxy-service), Mantine 9.3 (native CSS variables, no Emotion dependency), Tailwind 4 (strictly namespaced), and CSS Modules.
 
 ## Why this template?
 
@@ -33,6 +33,10 @@ It guarantees comprehensive CSS isolation: your extension styles will not affect
 
 ## 1. Getting Started
 
+Requires Node.js 22.12+ and pnpm 10.7.1. WXT 0.21 uses Vite 8 and an explicit `web-ext` dependency for automatic browser startup. The generated TypeScript configuration keeps the new strict checks enabled.
+
+The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The emitted CSS file is retained for auditing and is not loaded into the host page. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
+
 ```bash
 pnpm install
 pnpm dev                 # Chrome: launches a development browser with the extension loaded
@@ -47,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **Define the Manifest:** Adjust the `name` and `permissions` within the `manifest` function in `wxt.config.ts`. Target Manifest V3 (MV3); WXT automatically manages the down-conversion for Firefox.
 3. **Pin the Extension ID (Optional):** Copy `.env.example` to `.env` and set the `WXT_EXTENSION_KEY`. This securely injects your manifest `key` via environment variables. Only variables prefixed with `WXT_` or `VITE_` are included in the build output. Always maintain secrets in `.env`, not in committed configuration files.
 4. **Add UI Surfaces:** Every entry point under `src/entrypoints/` mounts a React application from `src/react-app/apps/`. To introduce a new surface, duplicate an existing app directory and configure the corresponding entry point.
-5. **Scope the Content Script:** The demo content script matches every `http`/`https` page (`matches` in `src/entrypoints/content/index.tsx`) and — since content scripts cannot be code-split — ships the full Mantine + React bundle (~550 kB JS + ~260 kB CSS) into each of them. Fine for a demo; for a real product, narrow `matches` to the sites you actually target, or keep the broad match but defer mounting (dynamic-import the UI on user action). Broad host access also draws extra scrutiny in store review.
+5. **Scope the Content Script:** The demo content script matches every `http`/`https` page (`matches` in `src/entrypoints/content/index.tsx`) and — since content scripts cannot be code-split — ships the full Mantine + React bundle (~802 kB JS including CSS) into each of them. Fine for a demo; for a real product, narrow `matches` to the sites you actually target, or keep the broad match but defer mounting (dynamic-import the UI on user action). Broad host access also draws extra scrutiny in store review.
 
 ### Build & Deploy
 

@@ -18,5 +18,5 @@
 
 - [ ] `pnpm compile && pnpm lint && pnpm build` pass
 - [ ] `pnpm test` passes
-- [ ] `pnpm audit:css` and `pnpm audit:ascii` pass (if the build or styles changed)
+- [ ] `pnpm audit:css`, `pnpm audit:ascii`, and `pnpm audit:surface` pass (if the build or styles changed)
 - [ ] Docs updated, and translations (`README.zh-CN.md` / `README.ja.md` / `README.ko.md`) kept in sync if the English README changed

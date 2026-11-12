@@ -25,7 +25,7 @@ const Z_VAR_SUFFIX: Record<keyof typeof Z_INDEX, string> = {
 };
 
 const Z_TO_CSS_VAR = Object.fromEntries(
-  Object.entries(Z_VAR_SUFFIX).map(([key, suffix]) => [key, `--${PROJECT_PREFIX}-z-${suffix}`]),
+  Object.entries(Z_VAR_SUFFIX).map(([key, suffix]) => [key, `--${PROJECT_PREFIX}-z-${suffix}`])
 ) as Record<keyof typeof Z_INDEX, string>;
 
 const LAYER_ORDER: (keyof typeof Z_INDEX)[] = ['floatUi', 'mainUi', 'modal', 'popover', 'notification', 'max'];
@@ -40,8 +40,8 @@ describe('Z_INDEX', () => {
 
   it('layers are strictly ascending in documented stacking order', () => {
     for (let i = 1; i < LAYER_ORDER.length; i++) {
-      const lower = Z_INDEX[LAYER_ORDER[i - 1]];
-      const higher = Z_INDEX[LAYER_ORDER[i]];
+      const lower = Z_INDEX[LAYER_ORDER[i - 1]!];
+      const higher = Z_INDEX[LAYER_ORDER[i]!];
       expect(higher, `${LAYER_ORDER[i]} must sit above ${LAYER_ORDER[i - 1]}`).toBeGreaterThan(lower);
     }
   });
@@ -51,7 +51,10 @@ describe('Z_INDEX', () => {
     const css = readFileSync(join(process.cwd(), 'src/react-app/styles/global.css'), 'utf8');
     for (const [key, cssVar] of Object.entries(Z_TO_CSS_VAR)) {
       const match = css.match(new RegExp(`${cssVar}:\\s*(\\d+)`));
-      expect(match, `${cssVar} missing from global.css — did the prefix change without updating global.css?`).not.toBeNull();
+      expect(
+        match,
+        `${cssVar} missing from global.css — did the prefix change without updating global.css?`
+      ).not.toBeNull();
       expect(Number(match![1]), `${cssVar} drifted from Z_INDEX.${key}`).toBe(Z_INDEX[key as keyof typeof Z_INDEX]);
     }
   });
@@ -64,7 +67,7 @@ describe('Z_INDEX', () => {
     const selector = `.${PROJECT_PREFIX}-surface-root`;
     expect(
       css.includes(selector),
-      `global.css must anchor surface styles on ${selector} to match PROJECT_PREFIX ('${PROJECT_PREFIX}')`,
+      `global.css must anchor surface styles on ${selector} to match PROJECT_PREFIX ('${PROJECT_PREFIX}')`
     ).toBe(true);
   });
 });

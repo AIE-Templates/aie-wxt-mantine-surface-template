@@ -1,8 +1,0 @@
-/*
- * WXT recreates a full <html><head><body> structure INSIDE the shadow root
- * (createShadowRootUi). The UA default `height` on that inner html can
- * stretch the host element and disturb page layout — neutralize it.
- */
-html {
-  height: auto;
-}

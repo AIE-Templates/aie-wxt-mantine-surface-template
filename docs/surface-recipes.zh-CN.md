@@ -56,7 +56,7 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo 示例分为 `src/core/rpc/echo/contract.ts` 和 `impl.ts`。UI 从 contract 导入 `getEchoService`；后台从 impl 导入 `registerEchoService`。不要在客户端使用的 barrel 文件中重新导出后台实现。
 
-现有 ESLint 配置仅保护模板 RPC 的实现边界，不限制下游业务服务的组织方式。这些 import 规则不是完整的传递依赖分析，也没有新增 CI 或体积预算流程。
+现有 ESLint 配置仅保护模板 RPC 的实现边界，不限制下游业务服务的组织方式。这些 import 规则不是完整的传递依赖分析，也不对业务代码规定体积预算。
 
 ## 多入口与 iframe
 

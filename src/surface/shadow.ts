@@ -22,6 +22,8 @@ type ShadowRootUiCtx = Parameters<typeof createShadowRootUi>[0];
 export interface ShadowSurfaceOptions<TMounted> {
   /** Custom element tag name (must contain a dash), e.g. SHADOW_SURFACE_TAG. */
   name: string;
+  /** Bundled entrypoint CSS; avoids extension-resource requests from the host page. */
+  css?: string;
   /** Where to insert the host element. Defaults to `body`. */
   anchor?: string | Element;
   /**
@@ -71,15 +73,14 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
 
   return createShadowRootUi<TMounted>(ctx, {
     name: options.name,
+    css: options.css?.replaceAll(':root', ':host'),
     position: options.position ?? 'overlay',
     anchor: options.anchor ?? 'body',
     isolateEvents: options.isolateEvents ?? ['keydown', 'keyup', 'keypress'],
     onMount: (container, shadowRoot) => {
-      // WXT's container is the <body> it recreates inside the shadow root;
-      // React warns when creating a root on a body, so wrap in a div. The
-      // div doubles as the Mantine theme root (CSS variables + color-scheme
-      // attribute) and as the portal target that keeps every floating layer
-      // inside the shadow tree.
+      // WXT 0.21 supplies a div inside the shadow root. Keep our own wrapper
+      // as the Mantine theme root and portal target so all floating layers
+      // stay within the surface, independently of WXT's container structure.
       const rootElement = document.createElement('div');
       rootElement.classList.add(SURFACE_ROOT_CLASS);
       container.append(rootElement);

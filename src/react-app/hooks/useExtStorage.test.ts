@@ -71,7 +71,7 @@ it('shares a single read and watcher and releases them after the last consumer',
   const b = renderHook(() => useExtStorage(item));
   expect(item.getValue).toHaveBeenCalledTimes(1);
   expect(watchers.size).toBe(1);
-  await act(async () => reads[0]('stored'));
+  await act(async () => reads[0]!('stored'));
   expect(a.result.current[0]).toBe('stored');
   expect(b.result.current[0]).toBe('stored');
   a.unmount();
@@ -85,8 +85,8 @@ it('a read from an unmounted consumer cannot overwrite the remounted snapshot', 
   const a = renderHook(() => useExtStorage(item));
   a.unmount();
   const b = renderHook(() => useExtStorage(item));
-  await act(async () => reads[1]('new'));
-  await act(async () => reads[0]('stale'));
+  await act(async () => reads[1]!('new'));
+  await act(async () => reads[0]!('stale'));
   expect(b.result.current[0]).toBe('new');
   const c = renderHook(() => useExtStorage(item));
   expect(c.result.current[0]).toBe('new');
@@ -100,7 +100,7 @@ it('a watch update wins over an earlier pending read', async () => {
   await act(async () => {
     for (const cb of watchers) cb('new');
   });
-  await act(async () => reads[0]('stale'));
+  await act(async () => reads[0]!('stale'));
   expect(hook.result.current[0]).toBe('new');
   hook.unmount();
 });

@@ -16,7 +16,7 @@
 
 본 템플릿은 완벽한 CSS 격리 환경을 보장합니다. 확장 프로그램의 스타일이 호스트 페이지에 영향을 미치지 않으며, 반대로 호스트 페이지의 전역 CSS가 확장 프로그램의 렌더링을 방해하지 않습니다.
 
-**기술 스택:** WXT 0.20, `@webext-core` (메시징 및 RPC 서비스), Mantine 9.3 (네이티브 CSS 변수 기반, Emotion 의존성 완전 제거), Tailwind 4 (엄격한 네임스페이스 격리), 그리고 CSS Modules.
+**기술 스택:** WXT 0.21, `@webext-core` (메시징 및 RPC 서비스), Mantine 9.3 (네이티브 CSS 변수 기반, Emotion 의존성 완전 제거), Tailwind 4 (엄격한 네임스페이스 격리), 그리고 CSS Modules.
 
 ## 이 템플릿을 선택해야 하는 이유
 
@@ -33,6 +33,10 @@
 
 ## 1. 시작하기
 
+Node.js 22.12+ 및 pnpm 10.7.1이 필요합니다. WXT 0.21은 Vite 8을 사용하며 브라우저 자동 시작을 위해 `web-ext`를 명시적으로 설치합니다. 생성되는 TypeScript 설정은 새로운 엄격한 검사를 유지합니다.
+
+Content 진입점은 `cssInjectionMode: 'manual'`을 사용하고 `virtual:surface-css`를 `createShadowSurfaceUi`에 전달합니다. 빌드 플러그인은 CSS Modules를 포함한 처리된 CSS 전체를 스크립트에 삽입하여 `chrome-extension://` 스타일시트 요청을 없앱니다. 일반 CSS import를 유지하며 별도의 모듈 스타일 목록은 필요하지 않습니다. 개발 모드에서도 WXT는 각 content 진입점을 개별 빌드합니다. 출력 CSS는 감사용이며 호스트 페이지에 로드되지 않습니다. `pnpm audit:surface` 또는 `pnpm audit:surface:firefox`로 삽입된 CSS와 출력 파일이 같은지 검사합니다. 문서 표면은 일반 스타일시트 로딩을 유지합니다.
+
 ```bash
 pnpm install
 pnpm dev                 # Chrome: 확장 프로그램이 로드된 개발용 브라우저를 실행합니다
@@ -47,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **Manifest 구성:** `wxt.config.ts` 파일의 `manifest` 함수 내에서 `name`과 `permissions`를 조정하십시오. 코드는 Manifest V3(MV3) 표준을 준수하여 작성해야 하며, WXT가 빌드 시 Firefox를 위한 MV2 다운그레이드를 자동 처리합니다.
 3. **확장 프로그램 ID 고정 (선택 사항):** `.env.example`을 `.env` 파일로 복사하고 `WXT_EXTENSION_KEY`를 설정하십시오. 이를 통해 환경 변수를 이용해 Manifest의 `key`를 안전하게 주입할 수 있습니다. 빌드 산출물에는 `WXT_` 또는 `VITE_` 접두사가 포함된 환경 변수만 포함됩니다. 보안을 위해 민감한 정보는 버전 관리 시스템에 커밋되지 않는 `.env`에 보관하십시오.
 4. **UI 인터페이스 추가:** `src/entrypoints/` 디렉터리 하위의 각 진입점(Entry Point)은 `src/react-app/apps/` 내의 특정 React 애플리케이션을 마운트하는 역할을 수행합니다. 새로운 화면을 추가하려면 기존 앱 디렉터리를 복제하고 해당 진입점을 구성하면 됩니다.
-5. **콘텐츠 스크립트 범위 좁히기:** 데모용 콘텐츠 스크립트는 모든 `http`/`https` 페이지에 매칭되며(`src/entrypoints/content/index.tsx`의 `matches`), 콘텐츠 스크립트는 코드 분할이 불가능하므로 각 페이지에 Mantine + React 전체 번들(약 550 kB JS + 260 kB CSS)이 주입됩니다. 데모로는 문제없지만 실제 제품에서는 `matches`를 실제 대상 사이트로 좁히거나, 넓은 매칭을 유지하되 마운트를 지연시키십시오(사용자 조작 시 동적 import). 광범위한 호스트 권한은 스토어 심사에서 추가 검토 대상이 되기도 합니다.
+5. **콘텐츠 스크립트 범위 좁히기:** 데모용 콘텐츠 스크립트는 모든 `http`/`https` 페이지에 매칭되며(`src/entrypoints/content/index.tsx`의 `matches`), 콘텐츠 스크립트는 코드 분할이 불가능하므로 각 페이지에 Mantine + React 전체 번들(CSS를 포함한 약 802 kB JS)이 주입됩니다. 데모로는 문제없지만 실제 제품에서는 `matches`를 실제 대상 사이트로 좁히거나, 넓은 매칭을 유지하되 마운트를 지연시키십시오(사용자 조작 시 동적 import). 광범위한 호스트 권한은 스토어 심사에서 추가 검토 대상이 되기도 합니다.
 
 ### 빌드 및 배포
 

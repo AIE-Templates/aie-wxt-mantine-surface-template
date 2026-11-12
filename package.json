@@ -22,7 +22,9 @@
     "prettier:check": "prettier --check \"**/*.{js,ts,jsx,tsx}\"",
     "prettier:write": "prettier --write \"**/*.{js,ts,jsx,tsx}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:surface": "node scripts/check-inline-surface-css.mjs .output/chrome-mv3",
+    "audit:surface:firefox": "node scripts/check-inline-surface-css.mjs .output/firefox-mv2"
   },
   "dependencies": {
     "@mantine/colors-generator": "^9.3.1",
@@ -30,8 +32,9 @@
     "@mantine/hooks": "^9.3.1",
     "@mantine/modals": "^9.3.1",
     "@mantine/notifications": "^9.3.1",
-    "@webext-core/messaging": "^3.0.2",
-    "@webext-core/proxy-service": "^2.0.1",
+    "@webext-core/isolated-element": "3.0.0",
+    "@webext-core/messaging": "^4.0.1",
+    "@webext-core/proxy-service": "^3.0.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -57,9 +60,13 @@
     "tailwindcss": "^4.1.11",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.61.0",
-    "vite": "^8.0.16",
+    "vite": "^8.3.8",
     "vitest": "^4.1.8",
-    "wxt": "^0.20.26"
+    "web-ext": "10.8.0",
+    "wxt": "^0.21.5"
   },
-  "packageManager": "pnpm@10.7.1"
+  "packageManager": "pnpm@10.7.1",
+  "engines": {
+    "node": ">=22.12.0"
+  }
 }

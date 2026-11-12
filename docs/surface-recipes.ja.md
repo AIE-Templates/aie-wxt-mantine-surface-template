@@ -54,7 +54,7 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo は `src/core/rpc/echo/contract.ts` と `impl.ts` に分かれています。UI は contract から `getEchoService` を import し、バックグラウンドは impl から `registerEchoService` を import します。クライアント用の barrel から実装を再エクスポートしないでください。型のみの import は実行時依存をバンドルせずにサービスを表現できます。
 
-既存の ESLint 設定は、このテンプレート RPC の狭い境界だけを保護します。下流プロジェクトのサービス構成を規定するものでも、推移的依存を完全に解析するものでもありません。CI やバンドルサイズの予算は追加しません。
+既存の ESLint 設定は、このテンプレート RPC の狭い境界だけを保護します。下流プロジェクトのサービス構成を規定するものでも、推移的依存を完全に解析するものでもありません。アプリケーションのバンドルサイズの予算は規定しません。
 
 ## 複数のエントリーポイントと iframe
 

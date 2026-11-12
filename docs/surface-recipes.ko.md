@@ -54,7 +54,7 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo 예제는 `src/core/rpc/echo/contract.ts`와 `impl.ts`로 나뉩니다. UI는 contract에서 `getEchoService`를 import하고 백그라운드는 impl에서 `registerEchoService`를 import합니다. 클라이언트용 barrel에서 구현을 다시 export하지 마세요. 타입 전용 import는 런타임 의존성을 번들에 포함하지 않고 서비스를 표현할 수 있습니다.
 
-기존 ESLint 설정은 템플릿 RPC의 좁은 경계만 보호합니다. 하위 프로젝트의 서비스 구조를 강제하거나 모든 전이 의존성을 분석하지는 않습니다. CI나 번들 크기 예산도 추가하지 않습니다.
+기존 ESLint 설정은 템플릿 RPC의 좁은 경계만 보호합니다. 하위 프로젝트의 서비스 구조를 강제하거나 모든 전이 의존성을 분석하지는 않습니다. 애플리케이션 번들 크기 예산은 강제하지 않습니다.
 
 ## 여러 진입점과 iframe
 
