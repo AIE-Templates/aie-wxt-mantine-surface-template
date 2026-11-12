@@ -81,6 +81,12 @@
   color: var(--mantine-color-text);
   -webkit-font-smoothing: var(--mantine-webkit-font-smoothing);
   -moz-osx-font-smoothing: var(--mantine-moz-font-smoothing);
+  /* Preflight/Mantine set these on html/body/:host; shadow surfaces have no
+     html/body and WXT's `:host { all: initial }` wins, so restate them here. */
+  tab-size: 4;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 
   /*
    * Tailwind rem compensation. rem resolves against the HOST page root font

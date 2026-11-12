@@ -257,6 +257,20 @@ class SatelliteRegistry {
     this.commit();
   }
 
+  /**
+   * Host surface teardown: remove every satellite and forget the style source,
+   * so nothing outlives `ui.remove()` / context invalidation and a later
+   * surface re-captures its own styles. Ignored for a surface the registry is
+   * not bound to.
+   */
+  release(surfaceShadowRoot: ShadowRoot) {
+    if (this.styleSource !== null && this.styleSource !== surfaceShadowRoot) return;
+    for (const id of [...this.records.keys()]) this.destroy(id);
+    this.styleSource = null;
+    this.sheets = [];
+    this.cssTexts = [];
+  }
+
   destroy(id: string) {
     const record = this.records.get(id);
     if (!record) return;
@@ -322,6 +336,15 @@ const satellites = new SatelliteRegistry();
 /** Imperative API usable from anywhere in the content script. */
 export function createSatellite(anchor: Element, node: ReactNode, options?: CreateSatelliteOptions): SatelliteHandle {
   return satellites.create(anchor, node, options);
+}
+
+/**
+ * Called by the host surface's teardown (surface/shadow). Not driven by React
+ * unmount: StrictMode's simulated unmount would destroy live satellites in dev.
+ * @internal
+ */
+export function releaseSatellites(surfaceShadowRoot: ShadowRoot): void {
+  satellites.release(surfaceShadowRoot);
 }
 
 /**

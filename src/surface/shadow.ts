@@ -16,6 +16,7 @@
 import { createShadowRootUi } from '#imports';
 import { SURFACE_ROOT_CLASS } from '@/constants';
 import type { ColorSchemeStrategy, SurfaceEnv } from './defs';
+import { releaseSatellites } from './satellite';
 
 type ShadowRootUiCtx = Parameters<typeof createShadowRootUi>[0];
 
@@ -70,6 +71,9 @@ function computeHostRemScale(): number {
 
 export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, options: ShadowSurfaceOptions<TMounted>) {
   const scale = computeHostRemScale();
+  // WXT calls onMount on every mount(); remembered so a repeated mount()
+  // without remove() reuses the app instead of starting a second one.
+  let current: { rootElement: HTMLElement; shadowRoot: ShadowRoot; mounted: TMounted } | undefined;
 
   return createShadowRootUi<TMounted>(ctx, {
     name: options.name,
@@ -78,6 +82,8 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
     anchor: options.anchor ?? 'body',
     isolateEvents: options.isolateEvents ?? ['keydown', 'keyup', 'keypress'],
     onMount: (container, shadowRoot) => {
+      if (current?.rootElement.parentNode === container) return current.mounted;
+
       // WXT 0.21 supplies a div inside the shadow root. Keep our own wrapper
       // as the Mantine theme root and portal target so all floating layers
       // stay within the surface, independently of WXT's container structure.
@@ -94,8 +100,14 @@ export async function createShadowSurfaceUi<TMounted>(ctx: ShadowRootUiCtx, opti
         colorSchemeStrategy: options.colorSchemeStrategy ?? 'extension',
       };
 
-      return options.onMount(rootElement, env);
+      current = { rootElement, shadowRoot, mounted: options.onMount(rootElement, env) };
+      return current.mounted;
     },
-    onRemove: options.onRemove,
+    onRemove: (mounted) => {
+      // Satellites live outside the shadow host, so WXT's remove() would leave them behind.
+      if (current) releaseSatellites(current.shadowRoot);
+      current = undefined;
+      options.onRemove?.(mounted);
+    },
   });
 }
