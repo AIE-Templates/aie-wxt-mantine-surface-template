@@ -32,7 +32,6 @@
     "@mantine/hooks": "^9.3.1",
     "@mantine/modals": "^9.3.1",
     "@mantine/notifications": "^9.3.1",
-    "@webext-core/isolated-element": "3.0.0",
     "@webext-core/messaging": "^4.0.1",
     "@webext-core/proxy-service": "^3.0.2",
     "react": "^19.2.7",
