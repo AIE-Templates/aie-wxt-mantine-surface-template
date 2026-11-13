@@ -25,8 +25,9 @@
  *
  * - `document.addEventListener` / `removeEventListener` are wrapped.
  *   Bubble-phase `keydown` registrations are mirrored onto a private, detached
- *   element, so order, `once`, `signal` and removal follow the browser's own
- *   bookkeeping. At an isolating shadow root, a copy of each Tab keydown is
+ *   element, so order, `signal` and removal follow the browser's own
+ *   bookkeeping; a `once` listener shares one wrapper between both places
+ *   and runs once in all. At an isolating shadow root, a copy of each Tab keydown is
  *   dispatched on that private target, and `preventDefault()` is carried back
  *   to the real event.
  * - `document.activeElement` gets an own accessor that takes the native value
@@ -62,13 +63,44 @@ function mirrorDocumentKeydown(): EventTarget {
   const target = (mirror = document.createElement('div'));
   const add = document.addEventListener.bind(document);
   const remove = document.removeEventListener.bind(document);
+  const mirrored = (type: string, options: Options) => type === 'keydown' && !isCapture(options);
+  // A `once` listener is registered in two places but must run once in all:
+  // both registrations go through one wrapper that removes itself from both.
+  const onceWrappers = new WeakMap<Listener, EventListener>();
   document.addEventListener = (type: string, listener: Listener, options?: Options) => {
+    if (!mirrored(type, options)) return add(type, listener, options);
+    if (typeof options === 'object' && options.once) {
+      if (onceWrappers.has(listener)) return; // already registered, as the browser would dedupe
+      const shared = { ...options, once: false };
+      const wrapper: EventListener = (event) => {
+        forget();
+        if (typeof listener === 'function') listener.call(document, event);
+        else listener.handleEvent(event);
+      };
+      const forget = () => {
+        onceWrappers.delete(listener);
+        remove(type, wrapper, shared);
+        target.removeEventListener(type, wrapper, shared);
+      };
+      onceWrappers.set(listener, wrapper);
+      options.signal?.addEventListener('abort', forget, { once: true });
+      add(type, wrapper, shared);
+      target.addEventListener(type, wrapper, shared);
+      return;
+    }
     add(type, listener, options);
-    if (type === 'keydown' && !isCapture(options)) target.addEventListener(type, listener, options);
+    target.addEventListener(type, listener, options);
   };
   document.removeEventListener = (type: string, listener: Listener, options?: Options) => {
     remove(type, listener, options);
-    if (type === 'keydown' && !isCapture(options)) target.removeEventListener(type, listener, options);
+    if (!mirrored(type, options)) return;
+    target.removeEventListener(type, listener, options);
+    const wrapper = onceWrappers.get(listener);
+    if (wrapper) {
+      onceWrappers.delete(listener);
+      remove(type, wrapper, options);
+      target.removeEventListener(type, wrapper, options);
+    }
   };
   return target;
 }

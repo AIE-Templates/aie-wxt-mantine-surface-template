@@ -247,6 +247,28 @@ it('relays only Tab, once, and lets nothing reach the host page', async () => {
   }
 });
 
+it('runs a once listener once across the relay and the document', async () => {
+  const { byId, tab } = await mount(<button id="plain">plain</button>);
+  const viaRelay = vi.fn();
+  const viaDocument = vi.fn();
+  document.addEventListener('keydown', viaRelay, { once: true });
+  document.addEventListener('keydown', viaDocument, { once: true });
+  byId('plain').focus();
+  tab();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+  expect(viaRelay).toHaveBeenCalledTimes(1);
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+  tab();
+  expect(viaDocument).toHaveBeenCalledTimes(1);
+
+  const removed = vi.fn();
+  document.addEventListener('keydown', removed, { once: true });
+  document.removeEventListener('keydown', removed);
+  tab();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+  expect(removed).not.toHaveBeenCalled();
+});
+
 it('does not double-deliver where keydown is not isolated', async () => {
   const onDocument = vi.fn();
   // Wrap document.addEventListener first, as an isolating surface would have.
