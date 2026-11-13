@@ -254,6 +254,7 @@ Surface と Satellite は、ホストページのショートカットが発火�
 - `MutationObserver` はデフォルトでDOMツリー全体の変更を監視します。DOMの変更が頻繁に発生する複雑なシングルページアプリケーション (SPA) においては、CPU負荷を最適化するために明示的なティアダウン (teardown) ロジックを実装してください。
 - 提供されるイベント隔離機能は、現在バブリングフェーズ (bubble phase) でのみ有効です。
 - フォーカスブリッジが中継するのは Tab のみです（他のキーは完全に隔離されたままです）。`document` リスナーが受け取るのはイベントのコピーであり（`isTrusted` は `false`、`target` は非公開の要素）、キャプチャフェーズの `document` リスナーと、中継を行う最初の shadow root をブリッジする前に登録された keydown リスナーはミラーされません。コンテンツスクリプトの world 内のすべてのコードから、`document.activeElement` は shadow root の内側まで解決された値として見えます。
+- Satellite のフローティングレイヤー（Popover、Tooltip、Menu、Select/Combobox のドロップダウン）はホスト Surface 内に描画され、トリガーとは別の shadow root に属するため、両者間の ID ベースの ARIA 関連付け（`aria-controls`、`aria-labelledby`、`aria-describedby`、`aria-activedescendant`）は解決されません。スクリーンリーダーはレイヤーの名前と説明を取得できず、Select はアクティブな選択肢を読み上げません。これらが必要な操作（特に Select/Combobox）は、Satellite ではなくホスト Surface に配置してください。
 
 ---
 

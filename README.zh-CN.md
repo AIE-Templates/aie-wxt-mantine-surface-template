@@ -254,6 +254,7 @@ Surface 与 Satellite 会在各自的 shadow root 上拦截 `keydown` / `keyup` 
 - `MutationObserver` 默认监听整棵 DOM 树的变更事件。在 DOM 频繁突变的重型单页面应用（SPA）中，建议开发者编写显式的资源销毁（Teardown）逻辑，以优化 CPU 性能开销。
 - 本框架提供的事件隔离机制目前仅在事件的冒泡阶段（Bubble Phase）生效。
 - 焦点桥接只转发 Tab（其余按键保持完全隔离）。`document` 监听器收到的是事件副本（`isTrusted` 为 `false`，`target` 是一个私有元素）；捕获阶段的 `document` 监听器，以及在首个负责转发的 shadow root 接入桥接之前注册的 keydown 监听器，不会被镜像。内容脚本 world 中的所有代码读到的 `document.activeElement` 都会解析到 shadow root 内部。
+- Satellite 的浮层（Popover、Tooltip、Menu、Select/Combobox 下拉）渲染在宿主 Surface 中，与触发元素分属不同的 shadow root，两者之间基于 ID 的 ARIA 关联（`aria-controls`、`aria-labelledby`、`aria-describedby`、`aria-activedescendant`）无法解析：读屏软件读不到浮层的名称和描述，Select 也不会播报当前选项。需要这些关联的交互（尤其是 Select/Combobox）请放在宿主 Surface 中，而不是 Satellite 中。
 
 ---
 

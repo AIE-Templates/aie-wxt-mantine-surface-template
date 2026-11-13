@@ -254,6 +254,7 @@ Surface와 Satellite는 호스트 페이지의 단축키가 실행되지 않도�
 - 내장된 `MutationObserver`는 기본적으로 DOM 트리 전체의 변이를 감시합니다. 노드 변경이 빈번하게 발생하는 무거운 단일 페이지 애플리케이션(SPA) 환경에서는 불필요한 CPU 사이클 낭비를 막기 위해 개발자가 직접 명시적인 해제(Teardown) 로직을 구현할 것을 권장합니다.
 - 프레임워크가 제공하는 이벤트 격리 수준은 현재 버블링 단계(Bubble Phase)의 이벤트 전파 차단에 국한되어 동작합니다.
 - 포커스 브리지는 Tab만 중계합니다(다른 키는 완전히 격리된 상태로 유지됩니다). `document` 리스너는 이벤트의 복사본을 받으며(`isTrusted`는 `false`, `target`은 비공개 요소), 캡처 단계의 `document` 리스너와, 중계를 수행하는 첫 shadow root가 브리지되기 전에 등록된 keydown 리스너는 미러링되지 않습니다. 콘텐츠 스크립트 world의 모든 코드에서 `document.activeElement`는 shadow root 내부까지 해석된 값으로 보입니다.
+- Satellite의 플로팅 레이어(Popover, Tooltip, Menu, Select/Combobox 드롭다운)는 호스트 Surface에 렌더링되어 트리거와 다른 shadow root에 속하므로, 둘 사이의 ID 기반 ARIA 연결(`aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-activedescendant`)이 해석되지 않습니다. 스크린 리더는 레이어의 이름과 설명을 읽지 못하고, Select는 활성 옵션을 안내하지 않습니다. 이러한 연결이 필요한 상호작용(특히 Select/Combobox)은 Satellite가 아닌 호스트 Surface에 배치하세요.
 
 ---
 

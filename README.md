@@ -254,6 +254,7 @@ Popups, side panels, options pages, and tabs are pre-configured with `documentSu
 - The `MutationObserver` monitors the entire DOM tree. In highly dynamic Single Page Applications (SPAs), implement explicit teardown logic to optimize CPU utilization.
 - Event isolation is only guaranteed during the bubble phase.
 - The focus bridge relays only Tab (every other key stays fully isolated). `document` listeners receive a copy of the event (`isTrusted` is `false`, `target` is a private element); capture-phase `document` listeners, and keydown listeners registered before the first relaying shadow root is bridged, are not mirrored. All code in the content-script world sees `document.activeElement` resolved into the shadow roots.
+- A satellite's floating layers (Popover, Tooltip, Menu, Select/Combobox dropdowns) render in the host surface, a different shadow root from their trigger, so ID-based ARIA links between the two (`aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-activedescendant`) do not resolve: screen readers lose the layer's name and description, and a Select does not announce the active option. Put interactions that need these, especially Select/Combobox, in the host surface rather than in a satellite.
 
 ---
 
