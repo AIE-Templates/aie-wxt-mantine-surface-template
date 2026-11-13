@@ -8,7 +8,7 @@ import { createSatellite } from './satellite';
  * and microtasks, which effectively cover the DOM behaviors: cleaning up orphans,
  * re-attaching when anchors move (B3), and repairing adjacency based on position.
  * Note that styling and React portals (e.g., adoptedStyleSheets) are NOT covered
- * in these tests and require a real browser (refer to CLAUDE.md for verification).
+ * in these tests and require a real browser (refer to AGENTS.md for verification).
  */
 
 // Flush MutationObserver callback → queued sweep microtask → DOM settle.

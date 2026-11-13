@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
 // too. NOTE: behaviours that need a real layout engine / compositor
 // (computeHostRemScale's min-font-size clamping, elementsFromPoint hit-tests)
 // are deliberately NOT unit-tested — happy-dom would give false confidence;
-// they stay browser-verified (see CLAUDE.md recipe).
+// they stay browser-verified (see AGENTS.md).
 export default defineConfig({
   plugins: [WxtVitest()],
   test: {
