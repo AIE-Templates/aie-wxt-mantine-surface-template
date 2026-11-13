@@ -46,8 +46,8 @@ export interface SurfaceEnv {
    * `16 / hostRootFontSize`; document surfaces are always `1`.
    *
    * Limitation: measured ONCE at surface creation. Hosts that change their
-   * root font size at runtime are not tracked (re-create the surface, or
-   * re-measure via computeHostRemScale, if that ever matters).
+   * root font size at runtime are not tracked (re-create the surface if that
+   * ever matters).
    */
   scale: number;
   colorSchemeStrategy: ColorSchemeStrategy;

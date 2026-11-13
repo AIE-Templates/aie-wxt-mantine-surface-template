@@ -5,10 +5,13 @@
  *
  * `:root, .<prefix>-surface-root` double selector: `:root` matches in document
  * surfaces; `.<prefix>-surface-root` matches the surface root INSIDE shadow
- * roots. Deliberately NOT `:host`: host elements live in the page DOM where
- * host-page selectors can reach them, and outer document styles beat
- * `:host` rules in the cascade — variables defined inside the shadow tree
- * are structurally unreachable by host CSS instead.
+ * roots. The surface root is what these variables rely on: host elements live
+ * in the page DOM where host-page selectors can reach them, and outer document
+ * styles beat `:host` rules in the cascade, whereas variables defined inside
+ * the shadow tree are structurally unreachable by host CSS. (The shadow
+ * surface rewrites `:root` to `:host` in its bundled CSS, so these values also
+ * land on the host element; the surface root redeclares them, so that copy
+ * never decides anything.)
  */
 
 /*

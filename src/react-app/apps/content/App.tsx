@@ -10,9 +10,9 @@
 import { useRef, useState } from 'react';
 import { Badge, Button, Group, Paper, Popover, Text, TextInput, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
-import { Z_INDEX } from '@/constants';
 import { createSatellite, type SatelliteHandle } from '@/surface/satellite';
 import DemoPanel from '@/react-app/components/DemoPanel';
+import { Z_INDEX } from '@/constants';
 
 function SatelliteBadge({ index }: { index: number }) {
   const [clicks, setClicks] = useState(0);

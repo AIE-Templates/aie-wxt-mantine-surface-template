@@ -12,9 +12,17 @@ export default defineContentScript({
     const ui = await createShadowSurfaceUi(ctx, {
       name: SHADOW_SURFACE_TAG,
       css: contentCss,
-      onMount: (container, env) => renderSurfaceApp(container, env, <ContentApp />),
+      onMount: (container, env) => {
+        const app = renderSurfaceApp(container, env, <ContentApp />);
+        app.catch((error) => console.warn('[content] failed to render the surface', error));
+        return app;
+      },
       onRemove: (mounted) => {
-        void mounted?.then((root) => root.unmount());
+        // A failed render was already reported in onMount.
+        void mounted?.then(
+          (root) => root.unmount(),
+          () => {}
+        );
       },
     });
     if (ctx.isInvalid) return;

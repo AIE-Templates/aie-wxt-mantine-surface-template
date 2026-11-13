@@ -1,10 +1,11 @@
 /**
  * @module surface/isolate-events
  *
- * Pure resolution of a satellite's `isolateEvents` option to a concrete event
- * list. Kept dependency-free (no React/Mantine/DOM) so it is unit-testable in
- * isolation and reusable by any shadow boundary. See satellite.tsx for how the
- * resolved list is attached (bubble-phase stopPropagation on the shadow root).
+ * Pure resolution of an `isolateEvents` option (shadow surface or satellite)
+ * to a concrete event list. Kept dependency-free (no React/Mantine/DOM) so it
+ * is unit-testable in isolation and reusable by any shadow boundary. See
+ * shadow.ts and satellite.tsx for how the resolved list is used (bubble-phase
+ * stopPropagation on the shadow root, and the focus bridge's Tab relay).
  */
 
 // Default events isolated at each satellite's shadow boundary — identical to

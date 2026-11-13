@@ -47,10 +47,14 @@ export function findPrefixMismatches(globalCss: string, prefix: string): string[
     // Character class includes `-` so a hyphenated stale prefix (e.g. a fork
     // that used `.my-ext-surface-root`) is reported in full, not truncated.
     const found = [...new Set([...globalCss.matchAll(/\.([a-z0-9-]+)-surface-root/gi)].map((m) => m[1]))].filter(
-      (p) => p !== prefix,
+      (p) => p !== prefix
     );
-    const hint = found.length ? ` (global.css currently uses ${found.map((p) => `.${p}-surface-root`).join(', ')})` : '';
-    errors.push(`global.css must anchor surface styles on ${surfaceClass} to match PROJECT_PREFIX ('${prefix}')${hint}`);
+    const hint = found.length
+      ? ` (global.css currently uses ${found.map((p) => `.${p}-surface-root`).join(', ')})`
+      : '';
+    errors.push(
+      `global.css must anchor surface styles on ${surfaceClass} to match PROJECT_PREFIX ('${prefix}')${hint}`
+    );
   }
 
   const zVar = `--${prefix}-z-main-ui`;
@@ -72,7 +76,9 @@ export default function checkPrefixSync(): PluginOption {
     const css = readFileSync(join(process.cwd(), GLOBAL_CSS), 'utf8');
     const errors = findPrefixMismatches(css, PROJECT_PREFIX);
     if (errors.length === 0) return;
-    const msg = `prefix.cjs ↔ global.css out of sync:\n${errors.map((e) => `  • ${e}`).join('\n')}\n` + `Update ${GLOBAL_CSS} to use the '${PROJECT_PREFIX}' prefix, then save.`;
+    const msg =
+      `prefix.cjs ↔ global.css out of sync:\n${errors.map((e) => `  • ${e}`).join('\n')}\n` +
+      `Update ${GLOBAL_CSS} to use the '${PROJECT_PREFIX}' prefix, then save.`;
     if (isBuild) {
       error(msg);
     } else if (!warned.has(msg)) {
@@ -89,7 +95,7 @@ export default function checkPrefixSync(): PluginOption {
     buildStart() {
       check(
         (m) => this.warn(m),
-        (m) => this.error(m),
+        (m) => this.error(m)
       );
     },
     handleHotUpdate(ctx) {
@@ -101,7 +107,7 @@ export default function checkPrefixSync(): PluginOption {
         warned.clear(); // a fresh edit deserves a fresh warning even if identical
         check(
           (m) => ctx.server.config.logger.warn(`\n${m}\n`, { timestamp: true }),
-          () => {},
+          () => {}
         );
       }
     },
