@@ -2,7 +2,7 @@
   "name": "aie-wxt-mantine-surface-template",
   "description": "AIE WXT + Mantine isomorphic-surface browser extension template",
   "private": true,
-  "version": "1.0.1",
+  "version": "2.0.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
