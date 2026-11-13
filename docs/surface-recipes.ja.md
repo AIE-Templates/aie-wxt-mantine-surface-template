@@ -2,7 +2,7 @@
 
 [English](surface-recipes.md) | [简体中文](surface-recipes.zh-CN.md) | [日本語](surface-recipes.ja.md) | [한국어](surface-recipes.ko.md)
 
-以下の機能と例は必要に応じて利用するものです。新しいエントリーポイントや開発手順を必須にせず、既定の外観と注入範囲も変更しません。
+以下の機能と例は必要に応じて利用するものです。追加のエントリーポイントや開発手順を必須にせず、既定の外観と注入範囲にも影響しません。
 
 ## アプリケーションのテーマと方向
 
@@ -10,11 +10,11 @@
 
 マージ順序は「アプリケーションのテーマ → 選択された主色 → Surface の分離設定」です。名前付きの色はマージ後のテーマから解決し、HEX 値にはパレットを生成します。Surface は rem スケールと、Shadow UI の Portal の配置先、スクロールロック、フローティング要素の既定値を最後に設定します。ただし、明示的なコンポーネント props はテーマの既定値を上書きできます。注入 UI では分離設定を上書きしないでください。
 
-`useVisual()` による方向設定、永続化、Surface 間の同期は維持されます。`dir` は各 Surface と Satellite のルートに設定し、ホストページの `<html>` は変更しません。独立した拡張ページは自分の `<html>` を所有するため、その更新は意図した動作です。言語から方向への対応付けはアプリケーションが担当します。
+方向は拡張全体の設定で、`useVisual()` が設定、永続化、Surface 間の同期を提供します。`dir` は各 Surface と Satellite のルートに設定し、ホストページの `<html>` は変更しません。独立した拡張ページは自分の `<html>` を所有するため、その更新は意図した動作です。言語から方向への対応付けはアプリケーションが担当します。
 
 ## 動的な明暗テーマ
 
-既存の `extension`、`force-light`、`force-dark` は引き続き使用できます。購読可能なデータソースを渡して、Surface の表示を動的に制御することもできます。
+`extension`、`force-light`、`force-dark` のほかに、購読可能なデータソースを渡して、Surface の表示を動的に制御することもできます。
 
 ```ts
 import { createColorSchemeSource } from '@/surface/color-scheme';
@@ -54,13 +54,13 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo は `src/core/rpc/echo/contract.ts` と `impl.ts` に分かれています。UI は contract から `getEchoService` を import し、バックグラウンドは impl から `registerEchoService` を import します。クライアント用の barrel から実装を再エクスポートしないでください。型のみの import は実行時依存をバンドルせずにサービスを表現できます。
 
-既存の ESLint 設定は、このテンプレート RPC の狭い境界だけを保護します。下流プロジェクトのサービス構成を規定するものでも、推移的依存を完全に解析するものでもありません。アプリケーションのバンドルサイズの予算は規定しません。
+ESLint 設定は、このテンプレート RPC の狭い境界だけを保護します。下流プロジェクトのサービス構成を規定するものでも、推移的依存を完全に解析するものでもありません。アプリケーションのバンドルサイズの予算は規定しません。
 
 ## 複数のエントリーポイントと iframe
 
 iframe は独自の document と content-script コンテキストを持ちます。トップページの入力・選択イベントのリスナーは、iframe 内のイベントを自動的には受け取りません。
 
-既存の `src/entrypoints/content/index.tsx` はトップフレームの UI として維持します。機能上必要な場合のみ、React/Mantine を import しない軽量の DOM エントリーを追加します。UI エントリーで allFrames を有効にした場合は、main の先頭に `if (window.self !== window.top) return;` を置き、浮動 UI の重複を防いでください。
+`src/entrypoints/content/index.tsx` はトップフレームの UI エントリーです。既定のトップフレーム範囲のままにします。機能上必要な場合のみ、React/Mantine を import しない軽量の DOM エントリーを追加します。UI エントリーで allFrames を有効にした場合は、main の先頭に `if (window.self !== window.top) return;` を置き、浮動 UI の重複を防いでください。
 
 任意の `src/entrypoints/frame-events.content.ts` の例です。このファイルは文書内の例であり、既定では生成・注入されません。
 
@@ -84,7 +84,7 @@ export default defineContentScript({
 
 ## 非同期初期化とクリーンアップ
 
-WXT の既存ライフサイクルを利用します。非同期処理を待つ前に無効化時の処理を登録し、各 await の後に `ctx.isInvalid` を確認してから UI や observer を開始します。
+WXT のコンテキストライフサイクルを利用します。非同期処理を待つ前に無効化時の処理を登録し、各 await の後に `ctx.isInvalid` を確認してから UI や observer を開始します。
 
 `ctx.addEventListener` はコンテキスト無効化時に解除されます。storage の watch や MutationObserver は `ctx.onInvalidated` で明示的に解除します。先に watch を登録しても、初期読み取りが遅れて新しい変更を上書きしないよう revision の確認が必要です。
 

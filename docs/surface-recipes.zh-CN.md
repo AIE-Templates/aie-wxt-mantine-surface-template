@@ -2,7 +2,7 @@
 
 [English](surface-recipes.md) | [简体中文](surface-recipes.zh-CN.md) | [日本語](surface-recipes.ja.md) | [한국어](surface-recipes.ko.md)
 
-以下能力和示例按需使用，不会新增默认入口，也不改变默认外观、注入范围或开发流程。
+以下能力和示例按需使用，不属于默认入口，也不影响默认外观、注入范围或开发流程。
 
 ## 应用主题与方向
 
@@ -10,11 +10,11 @@
 
 合并顺序是：应用主题 → 用户选择的主色 → Surface 隔离配置。命名色从合并后的主题解析；HEX 值生成色板。Surface 最后设置 rem 缩放，以及 Shadow UI 的 Portal 目标、滚动锁定和浮层配置。组件显式 props 仍可覆盖主题默认值，因此注入网页的 UI 不应显式覆盖这些隔离配置。
 
-`useVisual()` 的方向设置、持久化和跨 Surface 同步保持不变。方向写入各 Surface 和 Satellite 自有根节点，不修改宿主网页的 `<html>`。独立扩展页面拥有自己的 `<html>`，可以正常设置它。语言与方向的映射由应用决定。
+方向是扩展级偏好，由 `useVisual()` 提供设置、持久化和跨 Surface 同步。方向写入各 Surface 和 Satellite 自有根节点，不修改宿主网页的 `<html>`。独立扩展页面拥有自己的 `<html>`，可以正常设置它。语言与方向的映射由应用决定。
 
 ## 动态明暗主题接口
 
-原有的 `extension`、`force-light`、`force-dark` 策略继续可用。也可以传入一个可订阅的数据源，动态控制单个 Surface 的明暗主题：
+除 `extension`、`force-light`、`force-dark` 策略外，也可以传入一个可订阅的数据源，动态控制单个 Surface 的明暗主题：
 
 ```ts
 import { createColorSchemeSource } from '@/surface/color-scheme';
@@ -56,7 +56,7 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo 示例分为 `src/core/rpc/echo/contract.ts` 和 `impl.ts`。UI 从 contract 导入 `getEchoService`；后台从 impl 导入 `registerEchoService`。不要在客户端使用的 barrel 文件中重新导出后台实现。
 
-现有 ESLint 配置仅保护模板 RPC 的实现边界，不限制下游业务服务的组织方式。这些 import 规则不是完整的传递依赖分析，也不对业务代码规定体积预算。
+ESLint 配置仅保护模板 RPC 的实现边界，不限制下游业务服务的组织方式。这些 import 规则不是完整的传递依赖分析，也不对业务代码规定体积预算。
 
 ## 多入口与 iframe
 
@@ -64,7 +64,7 @@ Echo 示例分为 `src/core/rpc/echo/contract.ts` 和 `impl.ts`。UI 从 contrac
 
 推荐按实际需要分工：
 
-- 现有 `src/entrypoints/content/index.tsx` 继续只挂载顶层浮层。
+- `src/entrypoints/content/index.tsx` 只挂载顶层浮层。
 - 需要处理 iframe DOM 时，另建轻量 content 入口，不导入 React/Mantine。
 - 仅在需要时启用 `allFrames`、`matchAboutBlank`。它们仍受 URL 匹配、权限和浏览器限制约束，不保证覆盖任意 iframe。
 - 如果下游为 UI 入口开启了 allFrames，在 main 开头用 `if (window.self !== window.top) return;` 防止浮层重复出现。
@@ -90,7 +90,7 @@ export default defineContentScript({
 
 ## 异步初始化与清理
 
-复用 WXT 已有生命周期，无需另一套框架：
+使用 WXT 的 context 生命周期，无需另一套框架：
 
 1. 异步初始化前注册失效清理。
 2. 每次 await 后检查 `ctx.isInvalid`，再挂载 UI 或启动 observer。

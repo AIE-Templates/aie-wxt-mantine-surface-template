@@ -2,7 +2,7 @@
 
 [English](surface-recipes.md) | [简体中文](surface-recipes.zh-CN.md) | [日本語](surface-recipes.ja.md) | [한국어](surface-recipes.ko.md)
 
-아래 기능과 예시는 필요할 때만 사용합니다. 새로운 진입점이나 개발 절차를 강제하지 않으며 기본 외관과 주입 범위도 바꾸지 않습니다.
+아래 기능과 예시는 필요할 때만 사용합니다. 추가 진입점이나 개발 절차를 강제하지 않으며 기본 외관과 주입 범위에도 영향을 주지 않습니다.
 
 ## 애플리케이션 테마와 방향
 
@@ -10,11 +10,11 @@
 
 병합 순서는 애플리케이션 테마 → 선택한 기본 색상 → Surface 격리 설정입니다. 이름이 있는 색상은 병합된 테마에서 찾고 HEX 값은 팔레트를 생성합니다. Surface는 rem 배율과 Shadow UI의 Portal 대상, 스크롤 잠금, 떠 있는 요소의 기본값을 마지막에 설정합니다. 다만 컴포넌트에 명시적으로 전달한 props는 테마 기본값을 덮어쓸 수 있으므로 주입 UI에서 격리 설정을 덮어쓰지 마세요.
 
-`useVisual()`의 방향 설정, 저장, Surface 간 동기화는 유지됩니다. `dir`은 각 Surface와 Satellite의 자체 루트에 기록하며 호스트 페이지의 `<html>`은 수정하지 않습니다. 독립된 확장 페이지는 자신의 `<html>`을 소유하므로 이를 수정하는 것이 정상입니다. 언어와 방향의 연결은 애플리케이션이 결정합니다.
+방향은 확장 전체의 설정이며 `useVisual()`이 설정, 저장, Surface 간 동기화를 제공합니다. `dir`은 각 Surface와 Satellite의 자체 루트에 기록하며 호스트 페이지의 `<html>`은 수정하지 않습니다. 독립된 확장 페이지는 자신의 `<html>`을 소유하므로 이를 수정하는 것이 정상입니다. 언어와 방향의 연결은 애플리케이션이 결정합니다.
 
 ## 동적 밝은/어두운 테마
 
-기존 `extension`, `force-light`, `force-dark` 전략을 계속 사용할 수 있습니다. 구독 가능한 데이터 소스를 전달해 Surface의 테마를 동적으로 제어할 수도 있습니다.
+`extension`, `force-light`, `force-dark` 전략 외에 구독 가능한 데이터 소스를 전달해 Surface의 테마를 동적으로 제어할 수도 있습니다.
 
 ```ts
 import { createColorSchemeSource } from '@/surface/color-scheme';
@@ -54,13 +54,13 @@ import { followHostColorScheme } from '@/surface/addons/host-scheme';
 
 Echo 예제는 `src/core/rpc/echo/contract.ts`와 `impl.ts`로 나뉩니다. UI는 contract에서 `getEchoService`를 import하고 백그라운드는 impl에서 `registerEchoService`를 import합니다. 클라이언트용 barrel에서 구현을 다시 export하지 마세요. 타입 전용 import는 런타임 의존성을 번들에 포함하지 않고 서비스를 표현할 수 있습니다.
 
-기존 ESLint 설정은 템플릿 RPC의 좁은 경계만 보호합니다. 하위 프로젝트의 서비스 구조를 강제하거나 모든 전이 의존성을 분석하지는 않습니다. 애플리케이션 번들 크기 예산은 강제하지 않습니다.
+ESLint 설정은 템플릿 RPC의 좁은 경계만 보호합니다. 하위 프로젝트의 서비스 구조를 강제하거나 모든 전이 의존성을 분석하지는 않습니다. 애플리케이션 번들 크기 예산은 강제하지 않습니다.
 
 ## 여러 진입점과 iframe
 
 iframe에는 각각 별도의 document와 content-script 컨텍스트가 있습니다. 최상위 페이지의 입력·선택 이벤트 리스너가 iframe 내부의 이벤트를 자동으로 받지는 않습니다.
 
-기존 `src/entrypoints/content/index.tsx`는 최상위 프레임 UI로 유지합니다. 기능상 필요할 때만 React/Mantine을 import하지 않는 가벼운 DOM 진입점을 추가하세요. UI 진입점에서 allFrames를 활성화했다면 main 시작 부분에 `if (window.self !== window.top) return;`을 넣어 떠 있는 UI가 중복되지 않도록 합니다.
+`src/entrypoints/content/index.tsx`는 최상위 프레임 UI 진입점입니다. 기본 최상위 프레임 범위를 그대로 둡니다. 기능상 필요할 때만 React/Mantine을 import하지 않는 가벼운 DOM 진입점을 추가하세요. UI 진입점에서 allFrames를 활성화했다면 main 시작 부분에 `if (window.self !== window.top) return;`을 넣어 떠 있는 UI가 중복되지 않도록 합니다.
 
 선택적으로 추가할 `src/entrypoints/frame-events.content.ts`의 예시입니다. 문서 속 예시이므로 기본적으로 생성되거나 주입되지 않습니다.
 
@@ -84,7 +84,7 @@ export default defineContentScript({
 
 ## 비동기 초기화와 정리
 
-WXT의 기존 생명주기를 사용합니다. 비동기 초기화를 기다리기 전에 무효화 시 정리할 작업을 등록하고, 각 await 뒤에 `ctx.isInvalid`를 확인한 다음 UI나 observer를 시작합니다.
+WXT의 컨텍스트 생명주기를 사용합니다. 비동기 초기화를 기다리기 전에 무효화 시 정리할 작업을 등록하고, 각 await 뒤에 `ctx.isInvalid`를 확인한 다음 UI나 observer를 시작합니다.
 
 `ctx.addEventListener`는 컨텍스트가 무효화되면 정리됩니다. storage watch와 MutationObserver는 `ctx.onInvalidated`에서 명시적으로 해제합니다. watch를 먼저 등록하더라도 늦게 도착한 초기 읽기가 최신 변경을 덮어쓰지 않도록 revision 확인이 필요합니다.
 

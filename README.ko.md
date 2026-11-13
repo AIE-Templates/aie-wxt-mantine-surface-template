@@ -33,7 +33,7 @@
 
 ## 1. 시작하기
 
-Node.js 22.12+ 및 pnpm 10.7.1이 필요합니다. WXT 0.21은 Vite 8을 사용하며 브라우저 자동 시작을 위해 `web-ext`를 명시적으로 설치합니다. 생성되는 TypeScript 설정은 새로운 엄격한 검사를 유지합니다.
+Node.js 22.12+ 및 pnpm 10.7.1이 필요합니다. WXT 0.21은 Vite 8을 사용하며 브라우저 자동 시작을 위해 `web-ext`를 명시적으로 설치합니다. 생성되는 TypeScript 설정은 WXT의 엄격한 검사를 활성화된 상태로 둡니다.
 
 Content 진입점은 `cssInjectionMode: 'manual'`을 사용하고 `virtual:surface-css`를 `createShadowSurfaceUi`에 전달합니다. 빌드 플러그인은 CSS Modules를 포함한 처리된 CSS 전체를 스크립트에 삽입하여 `chrome-extension://` 스타일시트 요청을 없앱니다. 일반 CSS import를 유지하며 별도의 모듈 스타일 목록은 필요하지 않습니다. 개발 모드에서도 WXT는 각 content 진입점을 개별 빌드합니다. 플러그인은 출력된 스타일시트를 감사 전용 `surface-css/<진입점>.css`로 옮깁니다. 호스트 페이지에 로드되지 않고 `pnpm zip` 패키지에도 포함되지 않습니다. `virtual:surface-css`를 import하지 않는 content script는 WXT의 일반 CSS 주입을 그대로 사용합니다. `pnpm audit:surface` 또는 `pnpm audit:surface:firefox`로 삽입된 CSS와 출력 파일이 같은지 검사합니다. 문서 표면은 일반 스타일시트 로딩을 유지합니다.
 

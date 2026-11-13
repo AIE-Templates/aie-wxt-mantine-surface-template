@@ -33,7 +33,7 @@
 
 ## 1. 快速开始
 
-需要 Node.js 22.12+ 和 pnpm 10.7.1。WXT 0.21 使用 Vite 8，并显式依赖 `web-ext` 以自动启动浏览器。生成的 TypeScript 配置保留新版严格检查。
+需要 Node.js 22.12+ 和 pnpm 10.7.1。WXT 0.21 使用 Vite 8，并显式依赖 `web-ext` 以自动启动浏览器。生成的 TypeScript 配置保持启用 WXT 的严格检查。
 
 Content 入口使用 `cssInjectionMode: 'manual'`，将 `virtual:surface-css` 传给 `createShadowSurfaceUi`。构建插件把入口完整的处理后 CSS（含 CSS Modules）嵌入脚本，避免请求 `chrome-extension://` 样式资源。继续使用普通 CSS import，无需另行维护组件样式列表。WXT 在开发模式下也会分别构建各个 content 入口。插件把输出的样式表移到 `surface-css/<入口>.css`，仅供审计：不会加载到宿主页面，`pnpm zip` 也不会把它打进安装包。未导入 `virtual:surface-css` 的 content script 仍使用 WXT 常规的 CSS 注入。运行 `pnpm audit:surface` 或 `pnpm audit:surface:firefox` 检查内联样式与该文件一致。文档界面仍使用常规样式表加载。
 

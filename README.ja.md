@@ -33,7 +33,7 @@
 
 ## 1. はじめに
 
-Node.js 22.12+ と pnpm 10.7.1 が必要です。WXT 0.21 は Vite 8 を使用し、ブラウザーの自動起動には明示的な `web-ext` 依存関係を使用します。生成される TypeScript 設定では新しい厳密なチェックを維持します。
+Node.js 22.12+ と pnpm 10.7.1 が必要です。WXT 0.21 は Vite 8 を使用し、ブラウザーの自動起動には明示的な `web-ext` 依存関係を使用します。生成される TypeScript 設定では WXT の厳密なチェックを有効のままにします。
 
 Content エントリーは `cssInjectionMode: 'manual'` を使用し、`virtual:surface-css` を `createShadowSurfaceUi` に渡します。ビルドプラグインは CSS Modules を含む処理済み CSS 全体をスクリプトに埋め込み、`chrome-extension://` スタイルシートへのリクエストを避けます。通常の CSS import を維持し、モジュールスタイルの別リストは不要です。開発モードでも WXT は各 content エントリーを個別にビルドします。プラグインは出力されたスタイルシートを監査専用の `surface-css/<エントリー>.css` に移します。ホストページには読み込まれず、`pnpm zip` のパッケージにも含まれません。`virtual:surface-css` を import しない content script は WXT 通常の CSS 注入のままです。`pnpm audit:surface` または `pnpm audit:surface:firefox` で埋め込み CSS と出力ファイルの一致を確認します。ドキュメントサーフェスは通常のスタイルシート読み込みを維持します。
 

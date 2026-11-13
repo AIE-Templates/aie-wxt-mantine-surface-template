@@ -33,7 +33,7 @@ It guarantees comprehensive CSS isolation: your extension styles will not affect
 
 ## 1. Getting Started
 
-Requires Node.js 22.12+ and pnpm 10.7.1. WXT 0.21 uses Vite 8 and an explicit `web-ext` dependency for automatic browser startup. The generated TypeScript configuration keeps the new strict checks enabled.
+Requires Node.js 22.12+ and pnpm 10.7.1. WXT 0.21 uses Vite 8 and an explicit `web-ext` dependency for automatic browser startup. The generated TypeScript configuration keeps WXT's strict checks enabled.
 
 The content entry uses `cssInjectionMode: 'manual'` and passes `virtual:surface-css` to `createShadowSurfaceUi`. The build plugin embeds the entry's complete processed CSS (including CSS Modules) in its script, avoiding `chrome-extension://` stylesheet requests. Keep normal CSS imports; do not maintain a second list of module styles. WXT builds each content entry separately, including during development. The plugin moves the emitted sheet to `surface-css/<entry>.css`, an audit-only copy: it is not loaded into the host page and `pnpm zip` leaves it out of the package. Content scripts that do not import `virtual:surface-css` keep WXT's normal CSS injection. Run `pnpm audit:surface` (or `pnpm audit:surface:firefox`) to verify the embedded CSS matches that file. Document surfaces keep their regular stylesheet loading.
 

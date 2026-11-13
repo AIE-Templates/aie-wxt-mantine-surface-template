@@ -2,7 +2,7 @@
 
 [English](surface-recipes.md) | [简体中文](surface-recipes.zh-CN.md) | [日本語](surface-recipes.ja.md) | [한국어](surface-recipes.ko.md)
 
-These are opt-in examples, not additional entrypoints or a required project structure. The template's default appearance and injection scope are unchanged.
+These are opt-in examples, not additional entrypoints or a required project structure. They do not affect the template's default appearance or injection scope.
 
 ## Application theme
 
@@ -10,11 +10,11 @@ Edit `src/react-app/theme.ts` for fonts, named palettes (including Mantine virtu
 
 Merge order is application theme → selected primary color → surface isolation defaults. Named colors resolve against the merged Mantine theme; HEX values generate a palette. The surface owns rem scale and, for shadow surfaces, the portal target, scroll locking and floating-layer defaults. Explicit component props can still override theme defaults: do not override those isolation settings in injected UI.
 
-Direction remains an extension-wide preference exposed by `useVisual()`. It is written to each surface's own root and satellite roots, never to the host page's `<html>`. Document surfaces own their `<html>`, so writing there is intentional. Language-to-direction mapping belongs to the application.
+Direction is an extension-wide preference exposed by `useVisual()`. It is written to each surface's own root and satellite roots, never to the host page's `<html>`. Document surfaces own their `<html>`, so writing there is intentional. Language-to-direction mapping belongs to the application.
 
 ## Externally controlled light/dark mode
 
-The existing `extension`, `force-light`, and `force-dark` strategies remain available. A `ColorSchemeSource` can alternatively provide the surface's resolved scheme without changing the stored extension preference:
+Besides the `extension`, `force-light`, and `force-dark` strategies, a `ColorSchemeSource` can provide the surface's resolved scheme without changing the stored extension preference:
 
 ```ts
 import { createColorSchemeSource } from '@/surface/color-scheme';
@@ -50,13 +50,13 @@ To verify in a real browser, enable the accessory in the existing content entryp
 
 The Echo example is split into `src/core/rpc/echo/contract.ts` and `impl.ts`. UI imports `getEchoService` from the contract; only the background imports `registerEchoService` from the implementation. Do not re-export the implementation through a client barrel. Type-only imports may describe services without bundling their runtime dependencies.
 
-The existing ESLint config protects this narrow template RPC boundary. It does not prescribe the layout of application services, and its import-pattern checks are not a complete transitive dependency analysis. This boundary does not impose an application bundle-size budget.
+The ESLint config protects this narrow template RPC boundary. It does not prescribe the layout of application services, and its import-pattern checks are not a complete transitive dependency analysis. This boundary does not impose an application bundle-size budget.
 
 ## Separate DOM work from UI, and choose which frames need it
 
 Each iframe has its own document and content-script context. A listener in the top document does not receive selection/input events from an iframe. Run lightweight DOM functionality in eligible frames only when the feature requires it; keep a single floating UI in the top frame.
 
-The existing `src/entrypoints/content/index.tsx` is the UI entrypoint. Keep its default top-frame scope. If a downstream project enables all-frame injection for that entrypoint, put `if (window.self !== window.top) return;` at the start of `main` to avoid duplicate floating UI.
+`src/entrypoints/content/index.tsx` is the UI entrypoint. Keep its default top-frame scope. If a downstream project enables all-frame injection for that entrypoint, put `if (window.self !== window.top) return;` at the start of `main` to avoid duplicate floating UI.
 
 A separate optional `src/entrypoints/frame-events.content.ts` can start with:
 
@@ -80,7 +80,7 @@ export default defineContentScript({
 
 ## Clean up asynchronous initialization
 
-Use WXT's existing context lifecycle. `ctx.addEventListener` handles listener cleanup; observers and storage watchers need their own cleanup. Register invalidation handling before awaiting initialization, and check `ctx.isInvalid` after each await before mounting or starting work.
+Use WXT's context lifecycle. `ctx.addEventListener` handles listener cleanup; observers and storage watchers need their own cleanup. Register invalidation handling before awaiting initialization, and check `ctx.isInvalid` after each await before mounting or starting work.
 
 ```ts
 import { defineContentScript, storage } from '#imports';

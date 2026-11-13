@@ -44,7 +44,7 @@ To ensure the extension functions correctly and avoids conflicts with host pages
 ## WXT 0.21 and bundled surface CSS
 
 - Use Node.js 22.12+; `web-ext` is an explicit development dependency. Keep the generated strict TypeScript options enabled.
-- WXT now mounts into a div, not a nested html/head/body document. Do not depend on the old structure.
+- WXT mounts the UI into a div inside the shadow root; there is no nested html/head/body document to rely on.
 - Content entries use `cssInjectionMode: 'manual'`, import `virtual:surface-css`, and pass it as the `css` surface option. Normal global and CSS Module imports are collected automatically by `vite-plugins/inline-surface-css.ts`. Do not fetch public extension stylesheets.
 - Keep the emitted CSS audit asset; `audit:surface` checks that exactly this CSS is embedded in the JS and absent from manifest injection/resource declarations. Run Chrome and Firefox build/audit variants.
-- Use `wxt/testing/vitest-plugin` and `wxt/testing/fake-browser` instead of the removed `wxt/testing` barrel.
+- Import test helpers from `wxt/testing/vitest-plugin` and `wxt/testing/fake-browser`; there is no `wxt/testing` barrel.
