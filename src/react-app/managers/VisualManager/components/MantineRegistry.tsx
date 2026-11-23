@@ -16,10 +16,12 @@
 import { useLayoutEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
 import { generateColorsMap } from '@mantine/colors-generator';
 import {
+  Affix,
   Combobox,
   createTheme,
   DirectionContext,
   Drawer,
+  FloatingWindow,
   HoverCard,
   MantineProvider,
   Menu,
@@ -36,6 +38,7 @@ import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { useSurface } from '@/surface/context';
 import { appTheme } from '@/react-app/theme';
+import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
 import { extStorageColorSchemeManager } from '../colorSchemeManager';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from '../defs';
@@ -62,19 +65,28 @@ export default function MantineRegistry({
   const [colorSchemeManager] = useState(() => extStorageColorSchemeManager(colorScheme));
 
   // Hex primary colors get a generated palette; named colors resolve from
-  // the application theme without flattening virtual colors.
-  const { colors, baseColorIndex } = useMemo((): {
+  // the application theme without flattening virtual colors. Invalid hex
+  // strings (e.g. partial user input or corrupted storage) fall back safely
+  // instead of crashing every surface on startup.
+  const { colors, baseColorIndex, resolvedPrimaryColor } = useMemo((): {
     colors: MantineColorsTuple | undefined;
     baseColorIndex: MantineColorShade | MantinePrimaryShade | undefined;
+    resolvedPrimaryColor: VisualPrimaryColor;
   } => {
     if (primaryColor.startsWith('#')) {
-      const result = generateColorsMap(primaryColor);
-      return {
-        colors: result.colors.map((color) => color.hex()) as unknown as MantineColorsTuple,
-        baseColorIndex: result.baseColorIndex as MantineColorShade,
-      };
+      try {
+        const result = generateColorsMap(primaryColor);
+        return {
+          colors: result.colors.map((color) => color.hex()) as unknown as MantineColorsTuple,
+          baseColorIndex: result.baseColorIndex as MantineColorShade,
+          resolvedPrimaryColor: 'primary',
+        };
+      } catch (error) {
+        console.warn('[VisualManager] invalid hex primaryColor, falling back to default', primaryColor, error);
+        return { colors: undefined, baseColorIndex: undefined, resolvedPrimaryColor: DEFAULT_PRIMARY_COLOR };
+      }
     }
-    return { colors: undefined, baseColorIndex: undefined };
+    return { colors: undefined, baseColorIndex: undefined, resolvedPrimaryColor: primaryColor };
   }, [primaryColor]);
 
   const theme = useMemo(() => {
@@ -83,10 +95,10 @@ export default function MantineRegistry({
       ...(colors
         ? {
             colors: { primary: colors },
-            primaryColor: 'primary',
+            primaryColor: resolvedPrimaryColor,
             primaryShade: baseColorIndex,
           }
-        : { primaryColor }),
+        : { primaryColor: resolvedPrimaryColor }),
       components: {
         ...(isShadow
           ? {
@@ -95,7 +107,11 @@ export default function MantineRegistry({
               // document.body) — never acceptable from an injected surface.
               // `centered` comes from appTheme; mergeThemeOverrides deep-merges defaultProps.
               Modal: Modal.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
+              ModalRoot: Modal.Root.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
               Drawer: Drawer.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
+              DrawerRoot: Drawer.Root.extend({ defaultProps: { zIndex: Z_INDEX.modal, lockScroll: false } }),
+              Affix: Affix.extend({ defaultProps: { zIndex: Z_INDEX.modal } }),
+              FloatingWindow: FloatingWindow.extend({ defaultProps: { zIndex: Z_INDEX.popover } }),
               // Floating overlays portal to the surface root as SIBLINGS of
               // the main UI — Mantine's default z-index (300) would leave
               // them buried under the panel that opened them. The 'fixed'
@@ -142,7 +158,7 @@ export default function MantineRegistry({
       };
     }
     return merged;
-  }, [env, isShadow, colors, baseColorIndex, primaryColor]);
+  }, [env, isShadow, colors, baseColorIndex, resolvedPrimaryColor]);
 
   // An external source is opt-in; the core never imports host detection.
   const source = typeof env.colorSchemeStrategy === 'object' ? env.colorSchemeStrategy : undefined;

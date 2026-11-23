@@ -7,8 +7,9 @@
  * colorSchemeManager; direction/primary color are watched here).
  */
 
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { useSurface } from '@/surface/context';
 import MantineRegistry from './components/MantineRegistry';
 import VisualContextProvider from './context';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from './defs';
@@ -27,10 +28,22 @@ interface VisualStateBridgeProps extends PropsWithChildren {
 /**
  * Lives inside MantineProvider; consumes Mantine's raw hooks and exposes
  * unified change handlers through the VisualContext. Persistence rules:
- * color scheme is written by the colorSchemeManager (via Mantine), the
- * other preferences are written here.
+ * in `'extension'` mode, color scheme is written once by the colorSchemeManager
+ * (via Mantine); under forced/external schemes Mantine's setter is a no-op, so
+ * this bridge persists the preference directly. Direction and primary color are
+ * always persisted by the manager registry / bridge.
  */
-function VisualStateBridge({ children, ...props }: VisualStateBridgeProps) {
+function VisualStateBridge({
+  children,
+  colorScheme,
+  direction,
+  primaryColor,
+  onColorSchemeChange,
+  onDirectionChange,
+  onPrimaryColorChange,
+}: VisualStateBridgeProps) {
+  const env = useSurface();
+  const persistDirectly = env.colorSchemeStrategy !== 'extension';
   // keepTransitions: true is required for host isolation, not just for aesthetics.
   // Without it, Mantine's color-scheme toggle injects a global `*{transition:none}`
   // <style> tag into document.head (the host page) for ~10ms on every switch,
@@ -40,33 +53,51 @@ function VisualStateBridge({ children, ...props }: VisualStateBridgeProps) {
   // custom implementation.)
   const { setColorScheme: mantineSetColorScheme } = useMantineColorScheme({ keepTransitions: true });
   const activeColorScheme = useComputedColorScheme('light');
-  const setColorScheme = (colorScheme: VisualColorScheme) => {
-    props.onColorSchemeChange(colorScheme);
-    // The preference is extension-global, so persist it here: Mantine's setter
-    // is a no-op (no colorSchemeManager.set) while this surface has a forced or
-    // external scheme. Otherwise it also writes the same value, harmlessly.
-    visualColorSchemeStorage.setValue(colorScheme).catch((error) => {
-      console.warn('[VisualManager] failed to persist color scheme', error);
-    });
-    mantineSetColorScheme(colorScheme);
-  };
+  const setColorScheme = useCallback(
+    (next: VisualColorScheme) => {
+      onColorSchemeChange(next);
+      // Under a forced or external scheme, Mantine's setter is a no-op so
+      // colorSchemeManager.set never runs; persist directly there and let
+      // Mantine handle the single storage write in `'extension'` mode.
+      if (persistDirectly) {
+        visualColorSchemeStorage.setValue(next).catch((error) => {
+          console.warn('[VisualManager] failed to persist color scheme', error);
+        });
+      } else {
+        mantineSetColorScheme(next);
+      }
+    },
+    [onColorSchemeChange, persistDirectly, mantineSetColorScheme]
+  );
+  const toggleColorScheme = useCallback(
+    () => setColorScheme(activeColorScheme === 'light' ? 'dark' : 'light'),
+    [setColorScheme, activeColorScheme]
+  );
+  const toggleDirection = useCallback(
+    () => onDirectionChange(direction === 'ltr' ? 'rtl' : 'ltr'),
+    [onDirectionChange, direction]
+  );
+  const setPrimaryColor = useCallback(
+    (next: VisualPrimaryColor) => {
+      onPrimaryColorChange(next);
+      visualPrimaryColorStorage.setValue(next).catch((error) => {
+        console.warn('[VisualManager] failed to persist primary color', error);
+      });
+    },
+    [onPrimaryColorChange]
+  );
 
   return (
     <VisualContextProvider
-      colorScheme={props.colorScheme}
+      colorScheme={colorScheme}
       activeColorScheme={activeColorScheme}
-      direction={props.direction}
-      primaryColor={props.primaryColor}
+      direction={direction}
+      primaryColor={primaryColor}
       setColorScheme={setColorScheme}
-      toggleColorScheme={() => setColorScheme(activeColorScheme === 'light' ? 'dark' : 'light')}
-      setDirection={props.onDirectionChange}
-      toggleDirection={() => props.onDirectionChange(props.direction === 'ltr' ? 'rtl' : 'ltr')}
-      setPrimaryColor={(primaryColor) => {
-        props.onPrimaryColorChange(primaryColor);
-        visualPrimaryColorStorage.setValue(primaryColor).catch((error) => {
-          console.warn('[VisualManager] failed to persist primary color', error);
-        });
-      }}
+      toggleColorScheme={toggleColorScheme}
+      setDirection={onDirectionChange}
+      toggleDirection={toggleDirection}
+      setPrimaryColor={setPrimaryColor}
     >
       {children}
     </VisualContextProvider>
@@ -84,10 +115,10 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
   // Per preference: bumped by every newer value (watch event, local change)
   // so a catch-up read cannot overwrite it.
   const revisions = useRef<Record<VisualKey, number>>({ colorScheme: 0, direction: 0, primaryColor: 0 });
-  const update = <K extends VisualKey>(key: K, value: VisualPersistentState[K]) => {
+  const update = useCallback(<K extends VisualKey>(key: K, value: VisualPersistentState[K]) => {
     revisions.current[key]++;
     setState((s) => (s[key] === value ? s : { ...s, [key]: value }));
-  };
+  }, []);
 
   // Cross-surface sync: another surface (popup, sidepanel, in-page UI)
   // changed a preference → storage watch fires here → this surface follows.
@@ -123,14 +154,27 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
       active = false;
       unwatchers.forEach((unwatch) => unwatch());
     };
-  }, []);
+  }, [update]);
 
-  const setDirection = (direction: VisualDirection) => {
-    update('direction', direction);
-    visualDirectionStorage.setValue(direction).catch((error) => {
-      console.warn('[VisualManager] failed to persist direction', error);
-    });
-  };
+  const setDirection = useCallback(
+    (direction: VisualDirection) => {
+      update('direction', direction);
+      visualDirectionStorage.setValue(direction).catch((error) => {
+        console.warn('[VisualManager] failed to persist direction', error);
+      });
+    },
+    [update]
+  );
+
+  const onColorSchemeChange = useCallback(
+    (colorScheme: VisualColorScheme) => update('colorScheme', colorScheme),
+    [update]
+  );
+
+  const onPrimaryColorChange = useCallback(
+    (primaryColor: VisualPrimaryColor) => update('primaryColor', primaryColor),
+    [update]
+  );
 
   return (
     <MantineRegistry
@@ -143,9 +187,9 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
         colorScheme={state.colorScheme}
         direction={state.direction}
         primaryColor={state.primaryColor}
-        onColorSchemeChange={(colorScheme) => update('colorScheme', colorScheme)}
+        onColorSchemeChange={onColorSchemeChange}
         onDirectionChange={setDirection}
-        onPrimaryColorChange={(primaryColor) => update('primaryColor', primaryColor)}
+        onPrimaryColorChange={onPrimaryColorChange}
       >
         {children}
       </VisualStateBridge>

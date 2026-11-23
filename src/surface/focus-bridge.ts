@@ -49,7 +49,7 @@
  * and other documents (iframes) are unchanged.
  */
 
-type Listener = EventListenerOrEventListenerObject;
+type Listener = EventListenerOrEventListenerObject | null;
 type Options = boolean | AddEventListenerOptions | undefined;
 
 let mirror: EventTarget | undefined;
@@ -66,10 +66,12 @@ function mirrorDocumentKeydown(): EventTarget {
   const mirrored = (type: string, options: Options) => type === 'keydown' && !isCapture(options);
   // A `once` listener is registered in two places but must run once in all:
   // both registrations go through one wrapper that removes itself from both.
-  const onceWrappers = new WeakMap<Listener, EventListener>();
+  const onceWrappers = new WeakMap<EventListenerOrEventListenerObject, EventListener>();
   document.addEventListener = (type: string, listener: Listener, options?: Options) => {
+    if (!listener) return;
     if (!mirrored(type, options)) return add(type, listener, options);
     if (typeof options === 'object' && options.once) {
+      if (options.signal?.aborted) return;
       if (onceWrappers.has(listener)) return; // already registered, as the browser would dedupe
       const shared = { ...options, once: false };
       const wrapper: EventListener = (event) => {
@@ -92,6 +94,7 @@ function mirrorDocumentKeydown(): EventTarget {
     target.addEventListener(type, listener, options);
   };
   document.removeEventListener = (type: string, listener: Listener, options?: Options) => {
+    if (!listener) return;
     remove(type, listener, options);
     if (!mirrored(type, options)) return;
     target.removeEventListener(type, listener, options);
@@ -113,7 +116,7 @@ function relayTabKeydown(shadowRoot: ShadowRoot): void {
   relayed.add(shadowRoot);
   shadowRoot.addEventListener('keydown', (event) => {
     const { key, code, shiftKey, ctrlKey, altKey, metaKey, repeat } = event as KeyboardEvent;
-    if (key !== 'Tab') return;
+    if (key !== 'Tab' || event.defaultPrevented) return;
     const init = { key, code, shiftKey, ctrlKey, altKey, metaKey, repeat, cancelable: true };
     const copy = new KeyboardEvent('keydown', init);
     target.dispatchEvent(copy);

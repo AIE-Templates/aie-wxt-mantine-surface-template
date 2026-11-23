@@ -47,7 +47,7 @@ pnpm dev:firefox         # Firefox
 
 ### カスタマイズ設定
 
-1. **名前空間の定義:** `PROJECT_PREFIX` の唯一の信頼できる情報源（single source of truth）は、リポジトリルートの **`prefix.cjs`** にあります。この一行を変更するだけで、`src/constants`、`postcss.config.cjs`、`scripts/audit-css-vars.mjs` がすべて自動的に追従します。手動で同期する必要があるのは `global.css` のみです（CSSは定数をインポートできないため）——その中の `.aie-surface-root` セレクタと `--aie-z-*` 変数を一致するように更新してください。このミラーを忘れても確実に検知されます: `pnpm test` が失敗し、`pnpm dev` / `pnpm build` は `check-prefix-sync` Vite プラグインによって警告またはビルド失敗となります。この接頭辞はCSS変数とコアとなるサーフェスルートクラスに名前空間を付与し、ホストページとのスタイルの衝突を防ぎます。
+1. **名前空間の定義:** `PROJECT_PREFIX` の唯一の信頼できる情報源（single source of truth）は、リポジトリルートの **`prefix.cjs`** にあります。この一行を変更するだけで、`src/constants`、`postcss.config.cjs`、`scripts/audit-css-vars.mjs` がすべて自動的に追従します。手動で同期する必要があるのは `global.css` のみです（CSSは定数をインポートできないため）——その中の `.aie-surface-root` セレクタ、`--aie-z-*`、`--aie-sb-*` 変数を一致するように更新してください。このミラーを忘れても確実に検知されます: `pnpm test` が失敗し、`pnpm dev` / `pnpm build` は `check-prefix-sync` Vite プラグインによって警告またはビルド失敗となります。この接頭辞はCSS変数とコアとなるサーフェスルートクラスに名前空間を付与し、ホストページとのスタイルの衝突を防ぎます。
 2. **Manifest の構成:** `wxt.config.ts` 内の `manifest` 関数にて `name` と `permissions` を調整してください。実装は Manifest V3 (MV3) に準拠して行います。Firefox向けのMV2へのダウングレードは、ビルド時にWXTが自動的に処理します。
 3. **拡張機能IDの固定 (任意):** `.env.example` を `.env` にコピーし、`WXT_EXTENSION_KEY` を設定します。これにより、環境変数を通じてマニフェストの `key` が安全に注入されます。ビルド出力に組み込まれるのは `WXT_` または `VITE_` で始まる環境変数のみです。機密情報はバージョン管理対象外の `.env` で厳重に管理してください。
 4. **UIの追加:** `src/entrypoints/` 配下の各エントリーポイントは、`src/react-app/apps/` にあるReactアプリケーションをマウントする役割のみを担います。新しい画面を追加する場合は、既存のアプリディレクトリを複製し、対応するエントリーポイントを設定してください。
@@ -255,6 +255,7 @@ Surface と Satellite は、ホストページのショートカットが発火�
 - 提供されるイベント隔離機能は、現在バブリングフェーズ (bubble phase) でのみ有効です。
 - フォーカスブリッジが中継するのは Tab のみです（他のキーは完全に隔離されたままです）。`document` リスナーが受け取るのはイベントのコピーであり（`isTrusted` は `false`、`target` は非公開の要素）、キャプチャフェーズの `document` リスナーと、中継を行う最初の shadow root をブリッジする前に登録された keydown リスナーはミラーされません。コンテンツスクリプトの world 内のすべてのコードから、`document.activeElement` は shadow root の内側まで解決された値として見えます。
 - Satellite のフローティングレイヤー（Popover、Tooltip、Menu、Select/Combobox のドロップダウン）はホスト Surface 内に描画され、トリガーとは別の shadow root に属するため、両者間の ID ベースの ARIA 関連付け（`aria-controls`、`aria-labelledby`、`aria-describedby`、`aria-activedescendant`）は解決されません。スクリーンリーダーはレイヤーの名前と説明を取得できず、Select はアクティブな選択肢を読み上げません。これらが必要な操作（特に Select/Combobox）は、Satellite ではなくホスト Surface に配置してください。
+- Mantine の `Modal` と `Drawer` は `window` のキャプチャフェーズで `Escape` を監視しますが、Shadow DOM では `event.target` が shadow ホストにリターゲットされるため、内部の `Select`/`Combobox` や `Menu` 上の `data-mantine-stop-propagation` が `window` 側で見えなくなります。そのため shadow `Modal`/`Drawer` 内でドロップダウンを開いたまま `Escape` を押すと外側の `Modal`/`Drawer` も閉じてしまいます（内側のドロップダウンのみ閉じたい場合は `closeOnEscape={false}` を設定するか `onClose` で制御してください）。
 
 ---
 

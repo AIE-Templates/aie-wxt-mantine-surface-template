@@ -47,7 +47,7 @@ pnpm dev:firefox         # Firefox
 
 ### 환경 설정 및 커스터마이징
 
-1. **네임스페이스 설정:** `PROJECT_PREFIX`의 단일 진실 공급원（single source of truth）은 저장소 루트의 **`prefix.cjs`**에 있습니다. 이 한 줄만 변경하면 `src/constants`, `postcss.config.cjs`, `scripts/audit-css-vars.mjs`가 모두 자동으로 따라갑니다. 수동으로 동기화해야 하는 곳은 `global.css`뿐입니다（CSS는 상수를 import할 수 없음）——그 안의 `.aie-surface-root` 셀렉터와 `--aie-z-*` 변수를 일치하도록 수정하십시오. 이 미러를 잊으면 확실하게 감지됩니다: `pnpm test`가 실패하고 `pnpm dev` / `pnpm build`는 `check-prefix-sync` Vite 플러그인을 통해 경고하거나 빌드를 중단합니다. 이 접두사는 CSS 변수와 핵심 서피스 루트 클래스에 네임스페이스를 부여하여 호스트 페이지와의 스타일 충돌을 차단합니다.
+1. **네임스페이스 설정:** `PROJECT_PREFIX`의 단일 진실 공급원（single source of truth）은 저장소 루트의 **`prefix.cjs`**에 있습니다. 이 한 줄만 변경하면 `src/constants`, `postcss.config.cjs`, `scripts/audit-css-vars.mjs`가 모두 자동으로 따라갑니다. 수동으로 동기화해야 하는 곳은 `global.css`뿐입니다（CSS는 상수를 import할 수 없음）——그 안의 `.aie-surface-root` 셀렉터, `--aie-z-*`, `--aie-sb-*` 변수를 일치하도록 수정하십시오. 이 미러를 잊으면 확실하게 감지됩니다: `pnpm test`가 실패하고 `pnpm dev` / `pnpm build`는 `check-prefix-sync` Vite 플러그인을 통해 경고하거나 빌드를 중단합니다. 이 접두사는 CSS 변수와 핵심 서피스 루트 클래스에 네임스페이스를 부여하여 호스트 페이지와의 스타일 충돌을 차단합니다.
 2. **Manifest 구성:** `wxt.config.ts` 파일의 `manifest` 함수 내에서 `name`과 `permissions`를 조정하십시오. 코드는 Manifest V3(MV3) 표준을 준수하여 작성해야 하며, WXT가 빌드 시 Firefox를 위한 MV2 다운그레이드를 자동 처리합니다.
 3. **확장 프로그램 ID 고정 (선택 사항):** `.env.example`을 `.env` 파일로 복사하고 `WXT_EXTENSION_KEY`를 설정하십시오. 이를 통해 환경 변수를 이용해 Manifest의 `key`를 안전하게 주입할 수 있습니다. 빌드 산출물에는 `WXT_` 또는 `VITE_` 접두사가 포함된 환경 변수만 포함됩니다. 보안을 위해 민감한 정보는 버전 관리 시스템에 커밋되지 않는 `.env`에 보관하십시오.
 4. **UI 인터페이스 추가:** `src/entrypoints/` 디렉터리 하위의 각 진입점(Entry Point)은 `src/react-app/apps/` 내의 특정 React 애플리케이션을 마운트하는 역할을 수행합니다. 새로운 화면을 추가하려면 기존 앱 디렉터리를 복제하고 해당 진입점을 구성하면 됩니다.
@@ -255,6 +255,7 @@ Surface와 Satellite는 호스트 페이지의 단축키가 실행되지 않도�
 - 프레임워크가 제공하는 이벤트 격리 수준은 현재 버블링 단계(Bubble Phase)의 이벤트 전파 차단에 국한되어 동작합니다.
 - 포커스 브리지는 Tab만 중계합니다(다른 키는 완전히 격리된 상태로 유지됩니다). `document` 리스너는 이벤트의 복사본을 받으며(`isTrusted`는 `false`, `target`은 비공개 요소), 캡처 단계의 `document` 리스너와, 중계를 수행하는 첫 shadow root가 브리지되기 전에 등록된 keydown 리스너는 미러링되지 않습니다. 콘텐츠 스크립트 world의 모든 코드에서 `document.activeElement`는 shadow root 내부까지 해석된 값으로 보입니다.
 - Satellite의 플로팅 레이어(Popover, Tooltip, Menu, Select/Combobox 드롭다운)는 호스트 Surface에 렌더링되어 트리거와 다른 shadow root에 속하므로, 둘 사이의 ID 기반 ARIA 연결(`aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-activedescendant`)이 해석되지 않습니다. 스크린 리더는 레이어의 이름과 설명을 읽지 못하고, Select는 활성 옵션을 안내하지 않습니다. 이러한 연결이 필요한 상호작용(특히 Select/Combobox)은 Satellite가 아닌 호스트 Surface에 배치하세요.
+- Mantine의 `Modal`과 `Drawer`는 `window` 캡처 단계에서 `Escape`를 수신하는데, Shadow DOM에서는 `event.target`이 shadow 호스트로 리타게팅되어 내부 `Select`/`Combobox`나 `Menu`의 `data-mantine-stop-propagation`이 `window`에서 보이지 않습니다. 따라서 shadow `Modal`/`Drawer` 안에서 드롭다운을 연 채 `Escape`를 누르면 바깥쪽 `Modal`/`Drawer`까지 함께 닫힙니다(내부 드롭다운만 닫으려면 `closeOnEscape={false}`를 설정하거나 `onClose`에서 가드하십시오).
 
 ---
 

@@ -31,7 +31,6 @@ export default defineConfig(
         ...globals.serviceworker,
         ...globals.browser,
         ...globals.webextensions,
-        ...globals.node,
       },
     },
     rules: {
@@ -111,6 +110,27 @@ export default defineConfig(
           ],
         },
       ],
+    },
+  },
+  {
+    files: [
+      '**/*.{cjs,mjs}',
+      'wxt.config.ts',
+      'vitest.config.ts',
+      'vite-plugins/**/*.ts',
+      'scripts/**/*.mjs',
+      '**/*.test.{ts,tsx}',
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   eslintConfigPrettier

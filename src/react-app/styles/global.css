@@ -52,24 +52,41 @@
   --aie-z-notification: 2146300000;
   --aie-z-max: 2147400000;
 
-  --sb-track-color: transparent;
-  --sb-thumb-color: rgb(180, 180, 180);
-  --sb-size: 5px;
+  --aie-sb-track-color: transparent;
+  --aie-sb-thumb-color: #868e96;
+  --aie-sb-size: 5px;
 }
 
-::-webkit-scrollbar {
-  width: var(--sb-size);
-  height: var(--sb-size);
-}
+@layer base {
+  ::-webkit-scrollbar {
+    width: var(--aie-sb-size);
+    height: var(--aie-sb-size);
+  }
 
-::-webkit-scrollbar-track {
-  background: var(--sb-track-color);
-  border-radius: 5px;
-}
+  ::-webkit-scrollbar-track {
+    background: var(--aie-sb-track-color);
+    border-radius: 5px;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: var(--sb-thumb-color);
-  border-radius: 5px;
+  ::-webkit-scrollbar-thumb {
+    background: var(--aie-sb-thumb-color);
+    border-radius: 5px;
+  }
+
+  /* Firefox et al. lack ::-webkit-scrollbar; gate standard properties so
+     Chromium keeps using the 5px rounded WebKit rules above (Chrome 121+
+     disables ::-webkit-scrollbar whenever scrollbar-color/width are set).
+     Layered in `base` so `@layer mantine` (e.g. ScrollArea `scrollbar-width: none`) wins. */
+  @supports not selector(::-webkit-scrollbar) {
+    :root,
+    .aie-surface-root {
+      scrollbar-color: var(--aie-sb-thumb-color) var(--aie-sb-track-color);
+    }
+
+    :where(*) {
+      scrollbar-width: thin;
+    }
+  }
 }
 
 /* Document surfaces (popup/sidepanel/…): body is ours, paint it. `:root`
@@ -113,6 +130,24 @@
   --text-2xl: calc(1.5rem * var(--mantine-scale, 1));
   --text-3xl: calc(1.875rem * var(--mantine-scale, 1));
   --text-4xl: calc(2.25rem * var(--mantine-scale, 1));
+  --text-5xl: calc(3rem * var(--mantine-scale, 1));
+  --text-6xl: calc(3.75rem * var(--mantine-scale, 1));
+  --text-7xl: calc(4.5rem * var(--mantine-scale, 1));
+  --text-8xl: calc(6rem * var(--mantine-scale, 1));
+  --text-9xl: calc(8rem * var(--mantine-scale, 1));
+  --container-3xs: calc(16rem * var(--mantine-scale, 1));
+  --container-2xs: calc(18rem * var(--mantine-scale, 1));
+  --container-xs: calc(20rem * var(--mantine-scale, 1));
+  --container-sm: calc(24rem * var(--mantine-scale, 1));
+  --container-md: calc(28rem * var(--mantine-scale, 1));
+  --container-lg: calc(32rem * var(--mantine-scale, 1));
+  --container-xl: calc(36rem * var(--mantine-scale, 1));
+  --container-2xl: calc(42rem * var(--mantine-scale, 1));
+  --container-3xl: calc(48rem * var(--mantine-scale, 1));
+  --container-4xl: calc(56rem * var(--mantine-scale, 1));
+  --container-5xl: calc(64rem * var(--mantine-scale, 1));
+  --container-6xl: calc(72rem * var(--mantine-scale, 1));
+  --container-7xl: calc(80rem * var(--mantine-scale, 1));
   --radius-xs: calc(0.125rem * var(--mantine-scale, 1));
   --radius-sm: calc(0.25rem * var(--mantine-scale, 1));
   --radius-md: calc(0.375rem * var(--mantine-scale, 1));

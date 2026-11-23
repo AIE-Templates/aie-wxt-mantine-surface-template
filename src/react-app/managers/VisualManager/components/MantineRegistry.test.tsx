@@ -8,7 +8,8 @@ import { SurfaceProvider } from '@/surface/context';
 import type { SurfaceEnv } from '@/surface/defs';
 import { documentSurface } from '@/surface/document';
 import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
-import { SURFACE_ROOT_CLASS } from '@/constants';
+import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
+import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
 import { useVisual } from '../context';
 import VisualManagerRegistry from '../registry';
 import { visualColorSchemeStorage, visualDirectionStorage, visualPrimaryColorStorage } from '../storages';
@@ -268,4 +269,100 @@ it('a local change during the catch-up read wins over the read', async () => {
   await act(async () => finish('ltr'));
   expect(env.rootElement.getAttribute('dir')).toBe('rtl');
   read.mockRestore();
+});
+
+it('falls back safely when primaryColor is an invalid hex string', () => {
+  const env = shadowEnv();
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  let theme!: ReturnType<typeof useMantineTheme>;
+  function Probe() {
+    theme = useMantineTheme();
+    return null;
+  }
+  const app = (primaryColor: string) => (
+    <SurfaceProvider env={env}>
+      <MantineRegistry colorScheme="light" direction="ltr" primaryColor={primaryColor} onDirectionChange={() => {}}>
+        <Probe />
+      </MantineRegistry>
+    </SurfaceProvider>
+  );
+  try {
+    const view = render(app('#'), { container: env.rootElement });
+    expect(theme.primaryColor).toBe(DEFAULT_PRIMARY_COLOR);
+    for (const invalid of ['#xyz', '#12']) {
+      view.rerender(app(invalid));
+      expect(theme.primaryColor).toBe(DEFAULT_PRIMARY_COLOR);
+    }
+    expect(warn).toHaveBeenCalledTimes(3);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it('configures shadow isolation defaults on ModalRoot, DrawerRoot, Affix, and FloatingWindow', () => {
+  const env = shadowEnv();
+  let theme!: ReturnType<typeof useMantineTheme>;
+  function Probe() {
+    theme = useMantineTheme();
+    return null;
+  }
+  render(
+    <SurfaceProvider env={env}>
+      <MantineRegistry colorScheme="light" direction="ltr" primaryColor="blue" onDirectionChange={() => {}}>
+        <Probe />
+      </MantineRegistry>
+    </SurfaceProvider>,
+    { container: env.rootElement }
+  );
+  expect(theme.components.ModalRoot?.defaultProps).toMatchObject({ zIndex: Z_INDEX.modal, lockScroll: false });
+  expect(theme.components.DrawerRoot?.defaultProps).toMatchObject({ zIndex: Z_INDEX.modal, lockScroll: false });
+  expect(theme.components.Affix?.defaultProps).toMatchObject({ zIndex: Z_INDEX.modal });
+  expect(theme.components.FloatingWindow?.defaultProps).toMatchObject({ zIndex: Z_INDEX.popover });
+});
+
+it('writes color scheme preference to storage once per change in extension mode', async () => {
+  const env = shadowEnv();
+  const write = vi.spyOn(visualColorSchemeStorage, 'setValue');
+  function SchemeButton() {
+    const visual = useVisual();
+    return <button onClick={() => visual.setColorScheme('dark')}>dark</button>;
+  }
+  const view = render(
+    <SurfaceProvider env={env}>
+      <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+        <SchemeButton />
+      </VisualManagerRegistry>
+    </SurfaceProvider>,
+    { container: env.rootElement }
+  );
+  try {
+    fireEvent.click(view.getByText('dark'));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    expect(write).toHaveBeenCalledWith('dark');
+  } finally {
+    write.mockRestore();
+  }
+});
+
+it('updates visual.setColorScheme when strategy changes from forced to extension without visual diff', () => {
+  const env = shadowEnv();
+  function SchemeButton() {
+    const visual = useVisual();
+    return <button onClick={() => visual.setColorScheme('dark')}>dark</button>;
+  }
+  const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
+    <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
+      <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+        <SchemeButton />
+      </VisualManagerRegistry>
+    </SurfaceProvider>
+  );
+  const view = render(app('force-light'), { container: env.rootElement });
+  expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('light');
+
+  // Active scheme remains 'light' across the strategy switch, so VisualContextProvider
+  // must refresh when setColorScheme changes from direct persistence to Mantine's setter.
+  view.rerender(app('extension'));
+  fireEvent.click(view.getByText('dark'));
+  expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
 });

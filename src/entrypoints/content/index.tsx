@@ -13,14 +13,17 @@ export default defineContentScript({
       name: SHADOW_SURFACE_TAG,
       css: contentCss,
       onMount: (container, env) => {
-        const app = renderSurfaceApp(container, env, <ContentApp />);
+        const controller = new AbortController();
+        const app = renderSurfaceApp(container, env, <ContentApp />, { signal: controller.signal });
         app.catch((error) => console.warn('[content] failed to render the surface', error));
-        return app;
+        return { app, controller };
       },
       onRemove: (mounted) => {
-        // A failed render was already reported in onMount.
-        void mounted?.then(
-          (root) => root.unmount(),
+        // Cancel an in-flight hydration before it creates a React root, and
+        // unmount once any already-created root settles (failed renders logged above).
+        mounted?.controller.abort();
+        void mounted?.app.then(
+          (root) => root?.unmount(),
           () => {}
         );
       },

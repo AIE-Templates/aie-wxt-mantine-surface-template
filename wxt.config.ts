@@ -50,13 +50,24 @@ export default defineConfig({
     // over its own CDP pipe and an explicit port breaks Extensions.loadUnpacked.
     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
   },
-  // Function-form manifest so it can read env vars: `.env` is not loaded yet
-  // when this config module is first evaluated (https://wxt.dev/guide/essentials/config/environment-variables).
-  manifest: () => ({
+  // Function-form manifest so it can read env vars and target browser: `.env` is
+  // not loaded yet when this config module is first evaluated (https://wxt.dev/guide/essentials/config/environment-variables).
+  manifest: ({ browser }) => ({
     name: 'AIE Surface Template',
     permissions: ['storage'],
-    // Stable extension ID via the `key` field. Set WXT_EXTENSION_KEY in `.env`
-    // (see .env.example) — never hardcode it. Omitted from the manifest when unset.
-    ...(import.meta.env.WXT_EXTENSION_KEY ? { key: import.meta.env.WXT_EXTENSION_KEY } : {}),
+    // Stable Chromium extension ID via the `key` field (Chromium-only; omitted on
+    // Firefox builds). Set WXT_EXTENSION_KEY in `.env` (see .env.example) — never hardcode it.
+    ...(browser !== 'firefox' && import.meta.env.WXT_EXTENSION_KEY ? { key: import.meta.env.WXT_EXTENSION_KEY } : {}),
+    // For AMO (Firefox) submissions, uncomment and configure gecko settings:
+    // ...(browser === 'firefox'
+    //   ? {
+    //       browser_specific_settings: {
+    //         gecko: {
+    //           id: 'your-extension@example.com',
+    //           data_collection_permissions: { required: ['none'] },
+    //         },
+    //       },
+    //     }
+    //   : {}),
   }),
 });

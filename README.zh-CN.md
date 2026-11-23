@@ -47,7 +47,7 @@ pnpm dev:firefox         # Firefox
 
 ### 个性化配置
 
-1. **设定命名空间：** `PROJECT_PREFIX` 的唯一真实来源（single source of truth）位于仓库根目录的 **`prefix.cjs`**。只需修改这一行，`src/constants`、`postcss.config.cjs` 及 `scripts/audit-css-vars.mjs` 都会自动跟随。唯一需要手动同步的是 `global.css`（CSS 无法 import 该常量）——请同步修改其中的 `.aie-surface-root` 选择器与 `--aie-z-*` 变量。若遗漏该镜像会被响亮拦下：`pnpm test` 会失败，`pnpm dev` / `pnpm build` 会通过 `check-prefix-sync` Vite 插件发出警告或直接构建失败。此前缀为 CSS 变量及核心容器类添加命名空间，从根本上杜绝与宿主页面的样式冲突。
+1. **设定命名空间：** `PROJECT_PREFIX` 的唯一真实来源（single source of truth）位于仓库根目录的 **`prefix.cjs`**。只需修改这一行，`src/constants`、`postcss.config.cjs` 及 `scripts/audit-css-vars.mjs` 都会自动跟随。唯一需要手动同步的是 `global.css`（CSS 无法 import 该常量）——请同步修改其中的 `.aie-surface-root` 选择器、`--aie-z-*` 与 `--aie-sb-*` 变量。若遗漏该镜像会被响亮拦下：`pnpm test` 会失败，`pnpm dev` / `pnpm build` 会通过 `check-prefix-sync` Vite 插件发出警告或直接构建失败。此前缀为 CSS 变量及核心容器类添加命名空间，从根本上杜绝与宿主页面的样式冲突。
 2. **配置 Manifest：** 在 `wxt.config.ts` 的 `manifest` 函数中调整 `name` 与 `permissions`。请遵循 Manifest V3（MV3）标准编写，WXT 会在构建时自动处理针对 Firefox 的降级转换。
 3. **固定扩展 ID（可选）：** 复制 `.env.example` 为 `.env` 文件，并设定 `WXT_EXTENSION_KEY`。此举可通过环境变量安全注入 Manifest 的 `key`，避免硬编码。仅以 `WXT_` 或 `VITE_` 开头的环境变量会被打包入构建产物。请始终将敏感信息留存于 `.env` 中，切勿提交至版本库。
 4. **添加 UI 界面：** `src/entrypoints/` 目录下的每个入口文件均负责挂载 `src/react-app/apps/` 中的一个 React 应用。若需新增界面，只需复制现有应用目录并配置对应的入口文件即可。
@@ -103,7 +103,7 @@ wxt.config.ts         # WXT 与 Vite 配置文件、Manifest 定义及浏览器�
 | **Document**  | `documentSurface()` + `renderSurfaceApp()` | 弹出窗口、侧边栏、选项页、独立标签页             | 每页面 1 个    |
 | **Shadow**    | `createShadowSurfaceUi()`                  | 注入宿主页面的重型且高度隔离的 UI                | 每 Frame 1 个¹ |
 | **Satellite** | `createSatellite()`                        | 注入宿主页面的轻量级组件（如工具栏、状态角标等） | 无限制         |
-| **Content**   | 无（请参阅“设计模式”）                     | 直接操作或修改宿主页面的原生 DOM 与样式          | 无限制         |
+| **Content**   | 无（请参阅“设计模式”）                     | 直接操作或修改宿主页面的原生 DOM 与样式          | 不适用         |
 
 ¹ `createShadowSurfaceUi` 在技术底层支持多实例，但当前的 Satellite 注册表设计仅绑定于单一宿主。
 
@@ -255,6 +255,7 @@ Surface 与 Satellite 会在各自的 shadow root 上拦截 `keydown` / `keyup` 
 - 本框架提供的事件隔离机制目前仅在事件的冒泡阶段（Bubble Phase）生效。
 - 焦点桥接只转发 Tab（其余按键保持完全隔离）。`document` 监听器收到的是事件副本（`isTrusted` 为 `false`，`target` 是一个私有元素）；捕获阶段的 `document` 监听器，以及在首个负责转发的 shadow root 接入桥接之前注册的 keydown 监听器，不会被镜像。内容脚本 world 中的所有代码读到的 `document.activeElement` 都会解析到 shadow root 内部。
 - Satellite 的浮层（Popover、Tooltip、Menu、Select/Combobox 下拉）渲染在宿主 Surface 中，与触发元素分属不同的 shadow root，两者之间基于 ID 的 ARIA 关联（`aria-controls`、`aria-labelledby`、`aria-describedby`、`aria-activedescendant`）无法解析：读屏软件读不到浮层的名称和描述，Select 也不会播报当前选项。需要这些关联的交互（尤其是 Select/Combobox）请放在宿主 Surface 中，而不是 Satellite 中。
+- Mantine 的 `Modal` 和 `Drawer` 在 `window` 捕获阶段监听 `Escape`，而 Shadow DOM 会将 `event.target` 重定向为 shadow 宿主元素，导致内部 `Select`/`Combobox` 或 `Menu` 上的 `data-mantine-stop-propagation` 属性在 `window` 层不可见；因此在 shadow `Modal`/`Drawer` 内打开下拉框时按 `Escape` 会连带关闭外层 `Modal`/`Drawer`（若需仅关闭内层下拉框，请设置 `closeOnEscape={false}` 或在 `onClose` 中保护）。
 
 ---
 

@@ -64,6 +64,10 @@ export default function DemoPanel({ surfaceLabel }: { surfaceLabel: string }) {
         {PRIMARY_CHOICES.map((color) => (
           <ColorSwatch
             key={color}
+            component="button"
+            type="button"
+            aria-label={`Set primary color to ${color}`}
+            aria-pressed={visual.primaryColor === color}
             size={20}
             color={`var(--mantine-color-${color}-6)`}
             onClick={() => visual.setPrimaryColor(color)}
@@ -174,14 +178,32 @@ export default function DemoPanel({ surfaceLabel }: { surfaceLabel: string }) {
         <Button
           size="xs"
           variant="subtle"
-          onClick={async () => notifications.show({ message: await sendMessage('ping', surfaceLabel) })}
+          onClick={async () => {
+            try {
+              notifications.show({ message: await sendMessage('ping', surfaceLabel) });
+            } catch (error) {
+              notifications.show({
+                color: 'red',
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }}
         >
           messaging.ping
         </Button>
         <Button
           size="xs"
           variant="subtle"
-          onClick={async () => notifications.show({ message: await getEchoService().echo(surfaceLabel) })}
+          onClick={async () => {
+            try {
+              notifications.show({ message: await getEchoService().echo(surfaceLabel) });
+            } catch (error) {
+              notifications.show({
+                color: 'red',
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }}
         >
           rpc.echo
         </Button>
