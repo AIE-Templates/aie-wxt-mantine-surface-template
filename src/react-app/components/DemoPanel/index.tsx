@@ -21,6 +21,7 @@ import {
   SegmentedControl,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Tooltip,
@@ -58,6 +59,13 @@ export default function DemoPanel({ surfaceLabel }: { surfaceLabel: string }) {
         value={visual.colorScheme}
         onChange={(value) => visual.setColorScheme(value as VisualColorScheme)}
         data={['light', 'dark', 'auto']}
+      />
+
+      <Switch
+        size="xs"
+        label="Right-to-left layout"
+        checked={visual.direction === 'rtl'}
+        onChange={(event) => visual.setDirection(event.currentTarget.checked ? 'rtl' : 'ltr')}
       />
 
       <Group gap="xs">
