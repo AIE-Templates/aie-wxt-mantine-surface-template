@@ -29,7 +29,7 @@ scheme.set('dark');
 
 Pass the source as `colorSchemeStrategy` to `createShadowSurfaceUi` or `documentSurface`. Retain a stable source instance; update it with `set`, rather than recreating it on each render. A source can be shared intentionally or created per surface. Any external store with stable `getSnapshot(): 'light' | 'dark'` and `subscribe(listener): unsubscribe` functions can replace this helper. Functions must not require a `this` binding. Subscriptions are released when the provider unmounts or switches sources.
 
-An external source controls the visible scheme. `useVisual().setColorScheme()` still changes the extension preference, but that preference will not override an external or forced scheme. Hide or explain the extension preference control in a surface where it does not determine the visible result.
+An external source controls the visible scheme. `useVisual().setColorScheme()` still changes the extension preference, but that preference will not override an external or forced scheme. `toggleColorScheme()` switches the saved preference between light and dark. From `auto`, the first toggle selects the opposite of the system preference. Hide or explain the extension preference control in a surface where it does not determine the visible result.
 
 ## Follow the host page (optional accessory)
 

@@ -13,8 +13,8 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "audit:css": "node scripts/audit-css-vars.mjs .output/chrome-mv3/surface-css",
-    "audit:css:firefox": "node scripts/audit-css-vars.mjs .output/firefox-mv2/surface-css",
+    "audit:css": "node scripts/audit-css-vars.mjs .output/chrome-mv3/surface-css .output/chrome-mv3/assets",
+    "audit:css:firefox": "node scripts/audit-css-vars.mjs .output/firefox-mv2/surface-css .output/firefox-mv2/assets",
     "audit:ascii": "node scripts/audit-ascii.mjs .output/chrome-mv3",
     "audit:ascii:firefox": "node scripts/audit-ascii.mjs .output/firefox-mv2",
     "postinstall": "wxt prepare",
@@ -34,6 +34,7 @@
     "@mantine/notifications": "^9.3.1",
     "@webext-core/messaging": "^4.0.1",
     "@webext-core/proxy-service": "^3.0.2",
+    "parsel-js": "^1.2.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

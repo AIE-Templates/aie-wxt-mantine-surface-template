@@ -51,7 +51,7 @@ To evaluate in-page injected UIs, serve the local test host pages with `python3 
 2. **Define the Manifest:** Adjust the `name` and `permissions` within the `manifest` function in `wxt.config.ts`. Target Manifest V3 (MV3); WXT automatically manages the down-conversion for Firefox.
 3. **Pin the Extension ID (Optional):** Copy `.env.example` to `.env` and set the `WXT_EXTENSION_KEY`. This securely injects your manifest `key` via environment variables. Only variables prefixed with `WXT_` or `VITE_` are included in the build output. Always maintain secrets in `.env`, not in committed configuration files.
 4. **Add UI Surfaces:** Every entry point under `src/entrypoints/` mounts a React application from `src/react-app/apps/`. To introduce a new surface, duplicate an existing app directory and configure the corresponding entry point.
-5. **Scope the Content Script:** The demo content script matches every `http`/`https` page (`matches` in `src/entrypoints/content/index.tsx`) and — since content scripts cannot be code-split — ships the full Mantine + React bundle (~800 kB JS including CSS) into each of them. Fine for a demo; for a real product, narrow `matches` to the sites you actually target, or keep the broad match but defer mounting (dynamic-import the UI on user action). Broad host access also draws extra scrutiny in store review.
+5. **Scope the Content Script:** The demo content script matches every `http`/`https` page (`matches` in `src/entrypoints/content/index.tsx`) and — since content scripts cannot be code-split — ships the full Mantine + React bundle (~800 kB JS including CSS) into each of them. Fine for a demo; for a real product, narrow `matches` to the sites you actually target, or keep the broad match but mount the UI on user action. Deferring the mount saves rendering work; each matching page still receives the full script. Broad host access also draws extra scrutiny in store review.
 
 ### Build & Deploy
 
@@ -250,7 +250,7 @@ Popups, side panels, options pages, and tabs are pre-configured with `documentSu
 ## 7. Known Limitations
 
 - A satellite registry currently binds to a single host surface per frame.
-- Rem scale is calculated once during initialization. If the host dynamically alters its root font size subsequently, the extension UI will not automatically rescale.
+- Rem scale is measured when the shadow UI mounts. If the host dynamically alters its root font size subsequently, the extension UI will not automatically rescale.
 - The `MutationObserver` monitors the entire DOM tree. In highly dynamic Single Page Applications (SPAs), implement explicit teardown logic to optimize CPU utilization.
 - Event isolation is only guaranteed during the bubble phase.
 - The focus bridge relays only Tab (every other key stays fully isolated). `document` listeners receive a copy of the event (`isTrusted` is `false`, `target` is a private element); capture-phase `document` listeners, and keydown listeners registered before the first relaying shadow root is bridged, are not mirrored. All code in the content-script world sees `document.activeElement` resolved into the shadow roots.

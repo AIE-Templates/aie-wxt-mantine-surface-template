@@ -2,7 +2,7 @@
 // and classify its selector against the iron law —
 // "all root-level plugin CSS variables are anchored on .<prefix>-surface-root".
 //
-// Usage: node scripts/audit-css-vars.mjs <file.css | directory of .css files>
+// Usage: node scripts/audit-css-vars.mjs <surface CSS file or directory> [document assets directory]
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import postcss from 'postcss';
@@ -10,17 +10,20 @@ import { PROJECT_PREFIX } from '../prefix.cjs';
 
 const target = process.argv[2];
 if (!target) {
-  console.error('Usage: node scripts/audit-css-vars.mjs <file.css | directory>');
+  console.error('Usage: node scripts/audit-css-vars.mjs <surface CSS file or directory> [document assets directory]');
   process.exit(1);
 }
-const files = statSync(target).isDirectory()
-  ? readdirSync(target)
-      .filter((name) => name.endsWith('.css'))
-      .map((name) => join(target, name))
-  : [target];
-if (files.length === 0) {
-  console.error(`No .css files in ${target}`);
-  process.exit(1);
+function cssFiles(target) {
+  const files = statSync(target).isDirectory()
+    ? readdirSync(target)
+        .filter((name) => name.endsWith('.css'))
+        .map((name) => join(target, name))
+    : [target];
+  if (files.length === 0) {
+    console.error(`No .css files in ${target}`);
+    process.exit(1);
+  }
+  return files;
 }
 
 // A "root-level" selector is one that targets the document/shadow root or
@@ -47,6 +50,7 @@ function selectorTargetsRoot(sel) {
   // split on commas, check each compound selector for a root token at its head
   return sel.split(',').some((part) => {
     const s = part.trim();
+    if (s.startsWith(':host(')) return true;
     return ROOT_TOKENS.some(
       (t) => s === t || s.startsWith(t + '[') || s.startsWith(t + ':') || s.startsWith(t + ' ') || s.startsWith(t + '.')
     );
@@ -56,13 +60,36 @@ function selectorIncludesSurface(sel) {
   return sel.split(',').some((p) => SURFACE_CLASS_RE.test(p.trim().split(/[ >+~]/)[0]));
 }
 
-function auditFile(file) {
+function auditProperties(root) {
+  let propertyCount = 0;
+  const propertyNames = new Set();
+  root.walkAtRules('property', (at) => {
+    propertyCount++;
+    propertyNames.add(at.params);
+  });
+
+  console.log(`\n=== @property registrations (Tailwind names must be prefixed): ${propertyCount} ===`);
+  const unprefixed = [...propertyNames].filter((n) => n.startsWith('--tw-'));
+  const prefixed = [...propertyNames].filter((n) => n.startsWith(TW_PREFIX));
+  const otherProp = [...propertyNames].filter((n) => !n.startsWith('--tw-') && !n.startsWith(TW_PREFIX));
+  console.log(`  ${TW_PREFIX}* (namespaced): ${prefixed.length}`);
+  console.log(
+    `  --tw-* (UNNAMESPACED — would collide!): ${unprefixed.length}${unprefixed.length ? ' → ' + unprefixed.join(', ') : ''}`
+  );
+  console.log(`  other: ${otherProp.length}${otherProp.length ? ' → ' + otherProp.slice(0, 10).join(', ') : ''}`);
+
+  return unprefixed.length === 0;
+}
+
+function auditFile(file, propertiesOnly = false) {
   const root = postcss.parse(readFileSync(file, 'utf8'));
   console.log(`\n##### ${file}`);
+  const propertiesOk = auditProperties(root);
+  if (propertiesOnly) return propertiesOk;
   const buckets = {
     rootCompliant: [], // design tokens on root AND includes .<prefix>-surface-root → GOOD
     rootViolation: [], // design tokens on root but MISSING .<prefix>-surface-root  → VIOLATION
-    schemeStatic: [], // :root[data-mantine-color-scheme],:host([...]) static defaults — inert in shadow, runtime <style> on .<prefix>-surface-root supplies real values (NOT visible to this static audit)
+    schemeStatic: [], // Host-qualified scheme defaults. Mantine sets the scheme on the inner surface root.
     twTransient: [], // `*`-scoped --<prefix>-tw-* per-element fallback (Tailwind's initial values, namespaced) — not a design token
     scoped: new Map(), // component/utility selectors (local scope, out of law)
   };
@@ -87,14 +114,6 @@ function auditFile(file) {
     }
   });
 
-  // @property at-rules: stripped from shadow surface CSS (ignored there); if any remain, they must be namespaced
-  let propertyCount = 0;
-  const propertyNames = new Set();
-  root.walkAtRules('property', (at) => {
-    propertyCount++;
-    propertyNames.add(at.params);
-  });
-
   console.log('=== DESIGN-TOKEN root rules (governed by the iron law) ===');
   console.log(`COMPLIANT (include ${SURFACE}): ${buckets.rootCompliant.length} rule(s)`);
   for (const e of buckets.rootCompliant)
@@ -114,16 +133,6 @@ function auditFile(file) {
   for (const e of buckets.twTransient)
     console.log(`  ~ [${e.chain ? e.chain.slice(0, 40) + '…' : 'top'}] "${e.selector}" (${e.count} vars)`);
 
-  console.log(`\n=== @property registrations (must be namespaced if present): ${propertyCount} ===`);
-  const unprefixed = [...propertyNames].filter((n) => n.startsWith('--tw-'));
-  const prefixed = [...propertyNames].filter((n) => n.startsWith(TW_PREFIX));
-  const otherProp = [...propertyNames].filter((n) => !n.startsWith('--tw-') && !n.startsWith(TW_PREFIX));
-  console.log(`  ${TW_PREFIX}* (namespaced): ${prefixed.length}`);
-  console.log(
-    `  --tw-* (UNNAMESPACED — would collide!): ${unprefixed.length}${unprefixed.length ? ' → ' + unprefixed.join(', ') : ''}`
-  );
-  console.log(`  other: ${otherProp.length}${otherProp.length ? ' → ' + otherProp.slice(0, 10).join(', ') : ''}`);
-
   console.log(
     `\n=== SCOPED (component/utility, local — outside the law): ${buckets.scoped.size} distinct selectors ===`
   );
@@ -137,14 +146,16 @@ function auditFile(file) {
   );
 
   console.log(`\n=== VERDICT ===`);
-  const ok = buckets.rootViolation.length === 0 && unprefixed.length === 0;
+  const ok = buckets.rootViolation.length === 0 && propertiesOk;
   console.log(
     ok
-      ? `✅ Iron law holds: every root-level var rule includes ${SURFACE}; any @property registrations namespaced.`
+      ? `✅ Iron law holds: every root-level var rule includes ${SURFACE}; Tailwind @property registrations namespaced.`
       : '❌ Violations found above.'
   );
   return ok;
 }
 
-const results = files.map(auditFile);
+const results = cssFiles(target).map((file) => auditFile(file));
+const documentAssets = process.argv[3];
+if (documentAssets) results.push(...cssFiles(documentAssets).map((file) => auditFile(file, true)));
 process.exit(results.every(Boolean) ? 0 : 1);

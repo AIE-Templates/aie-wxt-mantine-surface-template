@@ -18,6 +18,7 @@ export interface VisualContextValues {
   direction: VisualDirection;
   primaryColor: VisualPrimaryColor;
   setColorScheme: (colorScheme: VisualColorScheme) => void;
+  /** Toggle the extension preference; 'auto' starts from the current system scheme. */
   toggleColorScheme: () => void;
   setDirection: (direction: VisualDirection) => void;
   toggleDirection: () => void;

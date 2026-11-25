@@ -14,7 +14,6 @@
  */
 
 import { useLayoutEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
-import { generateColorsMap } from '@mantine/colors-generator';
 import {
   Affix,
   Combobox,
@@ -29,19 +28,16 @@ import {
   Modal,
   Popover,
   Tooltip,
-  type MantineColorShade,
-  type MantineColorsTuple,
-  type MantinePrimaryShade,
   type MantineThemeOverride,
 } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { useSurface } from '@/surface/context';
 import { appTheme } from '@/react-app/theme';
-import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
 import { extStorageColorSchemeManager } from '../colorSchemeManager';
-import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from '../defs';
+import type { VisualColorScheme, VisualDirection } from '../defs';
+import type { PrimaryPalette } from '../primaryColor';
 
 const noopSubscribe = () => () => {};
 const lightSnapshot = () => 'light' as const;
@@ -49,14 +45,14 @@ const lightSnapshot = () => 'light' as const;
 export interface MantineRegistryProps extends PropsWithChildren {
   colorScheme: VisualColorScheme;
   direction: VisualDirection;
-  primaryColor: VisualPrimaryColor;
+  palette: PrimaryPalette['theme'];
   onDirectionChange: (direction: VisualDirection) => void;
 }
 
 export default function MantineRegistry({
   colorScheme,
   direction,
-  primaryColor,
+  palette,
   onDirectionChange,
   children,
 }: MantineRegistryProps) {
@@ -64,41 +60,10 @@ export default function MantineRegistry({
   const isShadow = env.kind === 'shadow';
   const [colorSchemeManager] = useState(() => extStorageColorSchemeManager(colorScheme));
 
-  // Hex primary colors get a generated palette; named colors resolve from
-  // the application theme without flattening virtual colors. Invalid hex
-  // strings (e.g. partial user input or corrupted storage) fall back safely
-  // instead of crashing every surface on startup.
-  const { colors, baseColorIndex, resolvedPrimaryColor } = useMemo((): {
-    colors: MantineColorsTuple | undefined;
-    baseColorIndex: MantineColorShade | MantinePrimaryShade | undefined;
-    resolvedPrimaryColor: VisualPrimaryColor;
-  } => {
-    if (primaryColor.startsWith('#')) {
-      try {
-        const result = generateColorsMap(primaryColor);
-        return {
-          colors: result.colors.map((color) => color.hex()) as unknown as MantineColorsTuple,
-          baseColorIndex: result.baseColorIndex as MantineColorShade,
-          resolvedPrimaryColor: 'primary',
-        };
-      } catch (error) {
-        console.warn('[VisualManager] invalid hex primaryColor, falling back to default', primaryColor, error);
-        return { colors: undefined, baseColorIndex: undefined, resolvedPrimaryColor: DEFAULT_PRIMARY_COLOR };
-      }
-    }
-    return { colors: undefined, baseColorIndex: undefined, resolvedPrimaryColor: primaryColor };
-  }, [primaryColor]);
-
   const theme = useMemo(() => {
     const overrides: MantineThemeOverride = {
       scale: env.scale,
-      ...(colors
-        ? {
-            colors: { primary: colors },
-            primaryColor: resolvedPrimaryColor,
-            primaryShade: baseColorIndex,
-          }
-        : { primaryColor: resolvedPrimaryColor }),
+      ...palette,
       components: {
         ...(isShadow
           ? {
@@ -158,7 +123,7 @@ export default function MantineRegistry({
       };
     }
     return merged;
-  }, [env, isShadow, colors, baseColorIndex, resolvedPrimaryColor]);
+  }, [env, isShadow, palette]);
 
   // An external source is opt-in; the core never imports host detection.
   const source = typeof env.colorSchemeStrategy === 'object' ? env.colorSchemeStrategy : undefined;

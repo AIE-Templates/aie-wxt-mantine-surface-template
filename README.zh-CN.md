@@ -51,7 +51,7 @@ pnpm dev:firefox         # Firefox
 2. **配置 Manifest：** 在 `wxt.config.ts` 的 `manifest` 函数中调整 `name` 与 `permissions`。请遵循 Manifest V3（MV3）标准编写，WXT 会在构建时自动处理针对 Firefox 的降级转换。
 3. **固定扩展 ID（可选）：** 复制 `.env.example` 为 `.env` 文件，并设定 `WXT_EXTENSION_KEY`。此举可通过环境变量安全注入 Manifest 的 `key`，避免硬编码。仅以 `WXT_` 或 `VITE_` 开头的环境变量会被打包入构建产物。请始终将敏感信息留存于 `.env` 中，切勿提交至版本库。
 4. **添加 UI 界面：** `src/entrypoints/` 目录下的每个入口文件均负责挂载 `src/react-app/apps/` 中的一个 React 应用。若需新增界面，只需复制现有应用目录并配置对应的入口文件即可。
-5. **收窄 Content Script 作用域：** 演示用 content script 会匹配所有 `http`/`https` 页面（见 `src/entrypoints/content/index.tsx` 的 `matches`），而 content script 无法代码分割，因此每个页面都会被注入完整的 Mantine + React 产物（约 800 kB JS，已包含 CSS）。作为演示没有问题；实际产品应将 `matches` 收窄到真正的目标站点，或保持宽匹配但延迟挂载（用户操作时再动态 import UI）。过宽的宿主权限也会在应用商店审核中招致额外审查。
+5. **收窄 Content Script 作用域：** 演示用 content script 会匹配所有 `http`/`https` 页面（见 `src/entrypoints/content/index.tsx` 的 `matches`），而 content script 无法代码分割，因此每个页面都会被注入完整的 Mantine + React 产物（约 800 kB JS，已包含 CSS）。作为演示没有问题；实际产品应将 `matches` 收窄到真正的目标站点，或保持宽匹配但等到用户操作时再挂载 UI。延迟挂载可以省去当下的渲染开销，每个匹配页面仍会收到完整脚本。过宽的宿主权限也会在应用商店审核中招致额外审查。
 
 ### 构建与发布
 
@@ -250,7 +250,7 @@ Surface 与 Satellite 会在各自的 shadow root 上拦截 `keydown` / `keyup` 
 ## 7. 已知局限性
 
 - 当前架构下，单个 Frame 内的 Satellite 注册表仅支持绑定至唯一的宿主 Surface 实例。
-- Rem 补偿系数在注入生命周期内仅计算一次。若宿主页面在运行时动态修改其根节点的字体尺寸，扩展 UI 不会自动响应其缩放重绘。
+- Rem 补偿系数在 Shadow UI 挂载时测量。若宿主页面在运行时动态修改其根节点的字体尺寸，扩展 UI 不会自动响应其缩放重绘。
 - `MutationObserver` 默认监听整棵 DOM 树的变更事件。在 DOM 频繁突变的重型单页面应用（SPA）中，建议开发者编写显式的资源销毁（Teardown）逻辑，以优化 CPU 性能开销。
 - 本框架提供的事件隔离机制目前仅在事件的冒泡阶段（Bubble Phase）生效。
 - 焦点桥接只转发 Tab（其余按键保持完全隔离）。`document` 监听器收到的是事件副本（`isTrusted` 为 `false`，`target` 是一个私有元素）；捕获阶段的 `document` 监听器，以及在首个负责转发的 shadow root 接入桥接之前注册的 keydown 监听器，不会被镜像。内容脚本 world 中的所有代码读到的 `document.activeElement` 都会解析到 shadow root 内部。

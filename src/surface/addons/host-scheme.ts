@@ -103,8 +103,8 @@ function canvasBase(doc: Document, rootStyle: CSSStyleDeclaration | null): Rgba 
  *  the UA canvas (whose color follows the declared color-scheme). */
 function paintedBackground(doc: Document): Rgba {
   const win = doc.defaultView;
-  if (!win?.getComputedStyle) return CANVAS_LIGHT;
-  const rootStyle = doc.documentElement ? win.getComputedStyle(doc.documentElement) : null;
+  if (!win?.getComputedStyle || !doc.documentElement) return CANVAS_LIGHT;
+  const rootStyle = win.getComputedStyle(doc.documentElement);
   let painted = canvasBase(doc, rootStyle);
   for (const style of [rootStyle, doc.body ? win.getComputedStyle(doc.body) : null]) {
     if (!style) continue;
@@ -172,10 +172,9 @@ const paintKey = ({ r, g, b, a }: Rgba): string => `${r},${g},${b},${a}`;
 
 function onDomContentLoaded(): void {
   bodyPending = false;
-  if (observer && document.body) {
-    observer.observe(document.body, { attributes: true });
-  }
-  schedule();
+  if (document.documentElement) observer?.observe(document.documentElement, { attributes: true });
+  if (document.body) observer?.observe(document.body, { attributes: true });
+  startRecheck();
 }
 
 function recheck(): void {
@@ -204,14 +203,22 @@ function schedule(): void {
   rafId = requestAnimationFrame(recheck);
 }
 
+// Each external change starts a fresh bounded run, even when a previous one hit the cap.
+function startRecheck(): void {
+  settleFrames = 0;
+  // The first frame can still show the color from before the external change.
+  lastPaint = '';
+  schedule();
+}
+
 function onVisibility(): void {
-  if (document.visibilityState === 'visible') schedule();
+  if (document.visibilityState === 'visible') startRecheck();
 }
 
 /** Only html/body backgrounds feed the detector — ignore the page's other
  *  transitions (hover effects etc. would otherwise schedule noise). */
 function onTransitionEnd(e: Event): void {
-  if (e.target === document.documentElement || e.target === document.body) schedule();
+  if (e.target === document.documentElement || e.target === document.body) startRecheck();
 }
 
 function start(): void {
@@ -219,7 +226,7 @@ function start(): void {
   cached = luminance(painted) < 0.4 ? 'dark' : 'light';
   lastPaint = paintKey(painted);
   settleFrames = 0;
-  observer = new MutationObserver(schedule);
+  observer = new MutationObserver(startRecheck);
   if (document.documentElement) observer.observe(document.documentElement, { attributes: true });
   // Attach once body exists if subscribed early (e.g. document_start).
   if (document.body) {
@@ -229,7 +236,7 @@ function start(): void {
     document.addEventListener('DOMContentLoaded', onDomContentLoaded, { once: true });
   }
   media = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
-  media?.addEventListener?.('change', schedule);
+  media?.addEventListener?.('change', startRecheck);
   document.addEventListener('visibilitychange', onVisibility);
   document.addEventListener('transitionend', onTransitionEnd, { capture: true, passive: true });
 }
@@ -241,7 +248,7 @@ function stop(): void {
     document.removeEventListener('DOMContentLoaded', onDomContentLoaded);
     bodyPending = false;
   }
-  media?.removeEventListener?.('change', schedule);
+  media?.removeEventListener?.('change', startRecheck);
   media = null;
   if (rafId !== null) cancelAnimationFrame(rafId);
   rafId = null;

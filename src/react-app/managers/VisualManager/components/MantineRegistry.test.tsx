@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-syntax -- Tests inspect the host document to prove surface isolation. */
-import { Portal, useDirection, useMantineTheme, virtualColor } from '@mantine/core';
+import { DEFAULT_THEME, Portal, useDirection, useMantineTheme, virtualColor } from '@mantine/core';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { followHostColorScheme } from '@/surface/addons/host-scheme';
@@ -11,6 +11,7 @@ import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
 import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
 import { useVisual } from '../context';
+import { resolvePrimaryColor } from '../primaryColor';
 import VisualManagerRegistry from '../registry';
 import { visualColorSchemeStorage, visualDirectionStorage, visualPrimaryColorStorage } from '../storages';
 import MantineRegistry from './MantineRegistry';
@@ -22,7 +23,10 @@ vi.mock('@/react-app/theme', async () => {
       ...appTheme,
       fontFamily: 'Example Sans',
       primaryShade: 5,
-      colors: { brand: virtualColor({ name: 'brand', light: 'blue', dark: 'cyan' }) },
+      colors: {
+        renamedPalette: DEFAULT_THEME.colors.red,
+        brand: virtualColor({ name: 'brand', light: 'blue', dark: 'cyan' }),
+      },
       components: {
         ...appTheme.components,
         Portal: { defaultProps: { target: 'body' } },
@@ -118,7 +122,12 @@ it('updates external schemes and cleans up when the source changes or unmounts',
   });
   const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
     <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
-      <MantineRegistry colorScheme="auto" direction="ltr" primaryColor="blue" onDirectionChange={() => {}} />
+      <MantineRegistry
+        colorScheme="auto"
+        direction="ltr"
+        palette={resolvePrimaryColor('blue').theme}
+        onDirectionChange={() => {}}
+      />
     </SurfaceProvider>
   );
   const view = render(app(first), { container: env.rootElement });
@@ -144,7 +153,12 @@ it('connects the optional host detector without mutating the host', async () => 
   document.body.style.backgroundColor = 'rgb(255, 255, 255)';
   render(
     <SurfaceProvider env={env}>
-      <MantineRegistry colorScheme="dark" direction="ltr" primaryColor="blue" onDirectionChange={() => {}} />
+      <MantineRegistry
+        colorScheme="dark"
+        direction="ltr"
+        palette={resolvePrimaryColor('blue').theme}
+        onDirectionChange={() => {}}
+      />
     </SurfaceProvider>,
     { container: env.rootElement }
   );
@@ -168,7 +182,12 @@ it('preserves application tokens and virtual colors while surface defaults win',
   }
   const app = (primaryColor: string) => (
     <SurfaceProvider env={env}>
-      <MantineRegistry colorScheme="light" direction="ltr" primaryColor={primaryColor} onDirectionChange={() => {}}>
+      <MantineRegistry
+        colorScheme="light"
+        direction="ltr"
+        palette={resolvePrimaryColor(primaryColor).theme}
+        onDirectionChange={() => {}}
+      >
         <Probe />
       </MantineRegistry>
     </SurfaceProvider>
@@ -181,6 +200,8 @@ it('preserves application tokens and virtual colors while surface defaults win',
   expect(theme.components.Portal!.defaultProps.target).toBe(env.portalTarget);
   expect(theme.components.Modal!.defaultProps.lockScroll).toBe(false);
   expect(theme.components.Modal!.defaultProps.centered).toBe(true);
+  view.rerender(app('renamedPalette'));
+  expect(theme.primaryColor).toBe('renamedPalette');
   view.rerender(app('#ff0000'));
   expect(theme.primaryColor).toBe('primary');
   expect(theme.colors.primary).toHaveLength(10);
@@ -191,7 +212,12 @@ it('sets direction on an owned document and restores its original attribute on u
   const env = documentSurface();
   const view = render(
     <SurfaceProvider env={env}>
-      <MantineRegistry colorScheme="light" direction="ltr" primaryColor="blue" onDirectionChange={() => {}} />
+      <MantineRegistry
+        colorScheme="light"
+        direction="ltr"
+        palette={resolvePrimaryColor('blue').theme}
+        onDirectionChange={() => {}}
+      />
     </SurfaceProvider>
   );
   expect(document.documentElement.getAttribute('dir')).toBe('ltr');
@@ -271,29 +297,33 @@ it('a local change during the catch-up read wins over the read', async () => {
   read.mockRestore();
 });
 
-it('falls back safely when primaryColor is an invalid hex string', () => {
+it('falls back safely when a stored primaryColor is invalid, missing, or inherited', () => {
   const env = shadowEnv();
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  let theme!: ReturnType<typeof useMantineTheme>;
   function Probe() {
-    theme = useMantineTheme();
-    return null;
+    return (
+      <output>
+        {useVisual().primaryColor} {useMantineTheme().primaryColor}
+      </output>
+    );
   }
-  const app = (primaryColor: string) => (
-    <SurfaceProvider env={env}>
-      <MantineRegistry colorScheme="light" direction="ltr" primaryColor={primaryColor} onDirectionChange={() => {}}>
-        <Probe />
-      </MantineRegistry>
-    </SurfaceProvider>
-  );
+  const invalidValues = ['#', '#xyz', '#12', 'legacyBrand', '', 'constructor', 42, null];
   try {
-    const view = render(app('#'), { container: env.rootElement });
-    expect(theme.primaryColor).toBe(DEFAULT_PRIMARY_COLOR);
-    for (const invalid of ['#xyz', '#12']) {
-      view.rerender(app(invalid));
-      expect(theme.primaryColor).toBe(DEFAULT_PRIMARY_COLOR);
+    for (const value of invalidValues) {
+      const view = render(
+        <SurfaceProvider env={env}>
+          <VisualManagerRegistry
+            persistentState={{ colorScheme: 'light', direction: 'ltr', primaryColor: value as string }}
+          >
+            <Probe />
+          </VisualManagerRegistry>
+        </SurfaceProvider>
+      );
+      expect(view.getByRole('status').textContent).toBe(`${DEFAULT_PRIMARY_COLOR} ${DEFAULT_PRIMARY_COLOR}`);
+      view.unmount();
     }
-    expect(warn).toHaveBeenCalledTimes(3);
+    expect(resolvePrimaryColor('removed', 'also-removed').preference).toBe(DEFAULT_THEME.primaryColor);
+    expect(warn).toHaveBeenCalledTimes(invalidValues.length + 1);
   } finally {
     warn.mockRestore();
   }
@@ -308,7 +338,12 @@ it('configures shadow isolation defaults on ModalRoot, DrawerRoot, Affix, and Fl
   }
   render(
     <SurfaceProvider env={env}>
-      <MantineRegistry colorScheme="light" direction="ltr" primaryColor="blue" onDirectionChange={() => {}}>
+      <MantineRegistry
+        colorScheme="light"
+        direction="ltr"
+        palette={resolvePrimaryColor('blue').theme}
+        onDirectionChange={() => {}}
+      >
         <Probe />
       </MantineRegistry>
     </SurfaceProvider>,
@@ -365,4 +400,136 @@ it('updates visual.setColorScheme when strategy changes from forced to extension
   view.rerender(app('extension'));
   fireEvent.click(view.getByText('dark'));
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
+});
+
+it.each(['force-dark', 'external source'] as const)(
+  'toggles the saved preference independently of %s',
+  async (strategy) => {
+    const env = shadowEnv();
+    env.colorSchemeStrategy = strategy === 'force-dark' ? strategy : createColorSchemeSource('dark');
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const matchMedia = vi
+      .spyOn(window, 'matchMedia')
+      .mockReturnValue({ ...media, matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    function Toggle() {
+      const visual = useVisual();
+      return <button onClick={visual.toggleColorScheme}>{visual.colorScheme}</button>;
+    }
+    try {
+      const view = render(
+        <SurfaceProvider env={env}>
+          <VisualManagerRegistry persistentState={{ colorScheme: 'auto', direction: 'ltr', primaryColor: 'blue' }}>
+            <Toggle />
+          </VisualManagerRegistry>
+        </SurfaceProvider>,
+        { container: env.rootElement }
+      );
+      for (const [previous, next] of [
+        ['auto', 'dark'],
+        ['dark', 'light'],
+        ['light', 'dark'],
+      ] as const) {
+        fireEvent.click(view.getByText(previous));
+        await waitFor(async () => expect(await visualColorSchemeStorage.getValue()).toBe(next));
+        expect(view.getByText(next)).toBeTruthy();
+        expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
+      }
+    } finally {
+      matchMedia.mockRestore();
+    }
+  }
+);
+
+it('keeps the latest local preference during and after delayed storage notifications', async () => {
+  function control<T>(
+    item: {
+      watch: (cb: (next: T) => void) => () => void;
+      getValue: () => Promise<T>;
+      setValue: (next: T) => Promise<void>;
+    },
+    initial: T
+  ) {
+    let stored = initial;
+    const callbacks = new Set<(next: T) => void>();
+    const writes: (() => void)[] = [];
+    vi.spyOn(item, 'watch').mockImplementation((cb) => {
+      callbacks.add(cb);
+      return () => {
+        callbacks.delete(cb);
+      };
+    });
+    vi.spyOn(item, 'getValue').mockImplementation(async () => stored);
+    vi.spyOn(item, 'setValue').mockImplementation(
+      (next) =>
+        new Promise<void>((resolve) => {
+          writes.push(() => {
+            stored = next;
+            resolve();
+          });
+        })
+    );
+    return {
+      writes,
+      notify: (next: T) => callbacks.forEach((cb) => cb(next)),
+      remote: (next: T) => {
+        stored = next;
+        callbacks.forEach((cb) => cb(next));
+      },
+    };
+  }
+  const direction = control(visualDirectionStorage, 'ltr');
+  const scheme = control(visualColorSchemeStorage, 'light');
+  const primary = control(visualPrimaryColorStorage, 'blue');
+  const env = shadowEnv();
+  let visual!: ReturnType<typeof useVisual>;
+  function Preferences() {
+    visual = useVisual();
+    return (
+      <output>{[visual.direction, visual.primaryColor, visual.colorScheme, visual.activeColorScheme].join(' ')}</output>
+    );
+  }
+  try {
+    const view = render(
+      <SurfaceProvider env={env}>
+        <VisualManagerRegistry persistentState={{ colorScheme: 'light', direction: 'ltr', primaryColor: 'blue' }}>
+          <Preferences />
+        </VisualManagerRegistry>
+      </SurfaceProvider>,
+      { container: env.rootElement }
+    );
+    await act(async () => {});
+    act(() => {
+      visual.setDirection('rtl');
+      visual.setPrimaryColor('red');
+      visual.setColorScheme('dark');
+    });
+    act(() => {
+      visual.setDirection('ltr');
+      visual.setPrimaryColor('grape');
+      visual.setColorScheme('light');
+    });
+    const notifyFirst = () => {
+      direction.notify('rtl');
+      scheme.notify('dark');
+      primary.notify('red');
+    };
+    for (let write = 0; write < 2; write++) {
+      await act(async () => {
+        direction.writes[write]!();
+        scheme.writes[write]!();
+        primary.writes[write]!();
+      });
+      await act(async () => notifyFirst());
+      expect(view.getByRole('status').textContent).toBe('ltr grape light light');
+    }
+    await act(async () => {
+      direction.remote('rtl');
+      scheme.remote('dark');
+      primary.remote('teal');
+    });
+    expect(view.getByRole('status').textContent).toBe('rtl teal dark dark');
+  } finally {
+    cleanup();
+    vi.restoreAllMocks();
+  }
 });
