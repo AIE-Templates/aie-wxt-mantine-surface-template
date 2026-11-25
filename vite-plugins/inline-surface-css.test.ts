@@ -189,6 +189,14 @@ describe('prepareShadowCss', () => {
     expect(prepareShadowCss(css)).not.toContain(':host(/*note*/)');
   });
 
+  it('preserves opaque comments and comment-like attribute values during the root rewrite', () => {
+    const comment = String.raw`/* (note) "q" \x :root */`;
+    const css = `:root ${comment} .panel, :is(:root${comment}.dark, [title${comment}="/*0*/"]) { color: red }`;
+    expect(prepareShadowCss(css)).toBe(
+      `:host ${comment} .panel, :is(:host(${comment}.dark), [title${comment}="/*0*/"]) { color: red }`
+    );
+  });
+
   it('leaves CSS without @property untouched', () => {
     expect(prepareShadowCss('.x{color:red}')).toBe('.x{color:red}');
   });

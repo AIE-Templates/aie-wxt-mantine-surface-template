@@ -83,12 +83,17 @@ function scopeRawRules(group: CSSStyleSheet | CSSGroupingRule): boolean {
     if ('cssRules' in rule) changed = scopeRawRules(rule as CSSGroupingRule) || changed;
     if (rule.type !== CSSRule.STYLE_RULE) continue;
     const { selectorText } = rule as CSSStyleRule;
-    const selector = shadowRootSelector(selectorText);
-    if (selector === selectorText) continue;
-    const replacement = selector + rule.cssText.slice(selectorText.length);
-    group.deleteRule(index);
-    group.insertRule(replacement, index);
-    changed = true;
+    try {
+      const selector = shadowRootSelector(selectorText);
+      if (selector === selectorText) continue;
+      const replacement = selector + rule.cssText.slice(selectorText.length);
+      // Validate and insert first so a rejected replacement leaves the original intact.
+      group.insertRule(replacement, index);
+      group.deleteRule(index + 1);
+      changed = true;
+    } catch (error) {
+      console.warn('[surface/shadow] could not rewrite selector', selectorText, error);
+    }
   }
   return changed;
 }

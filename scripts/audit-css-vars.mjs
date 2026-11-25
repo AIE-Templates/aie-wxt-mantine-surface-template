@@ -6,6 +6,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import postcss from 'postcss';
+import selectorParser from 'postcss-selector-parser';
 import { PROJECT_PREFIX } from '../prefix.cjs';
 
 const target = process.argv[2];
@@ -29,11 +30,8 @@ function cssFiles(target) {
 // A "root-level" selector is one that targets the document/shadow root or
 // every element — i.e. where a custom property becomes a design token for the
 // whole subtree. These are the ONLY ones the iron law governs.
-const ROOT_TOKENS = [':root', ':host', 'html', 'body', '*'];
-const SURFACE = `.${PROJECT_PREFIX}-surface-root`;
-const SURFACE_CLASS_RE = new RegExp(
-  `\\.${PROJECT_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-surface-root(?![\\w-])`
-);
+const surfaceClass = `${PROJECT_PREFIX}-surface-root`;
+const SURFACE = `.${surfaceClass}`;
 const TW_PREFIX = `--${PROJECT_PREFIX}-tw-`;
 
 function atRuleChain(node) {
@@ -46,19 +44,42 @@ function atRuleChain(node) {
   return chain.join(' > ');
 }
 
-function selectorTargetsRoot(sel) {
-  // split on commas, check each compound selector for a root token at its head
-  return sel.split(',').some((part) => {
-    const s = part.trim();
-    if (s.startsWith(':host(')) return true;
-    return ROOT_TOKENS.some(
-      (t) => s === t || s.startsWith(t + '[') || s.startsWith(t + ':') || s.startsWith(t + ' ') || s.startsWith(t + '.')
-    );
-  });
+// Only the subject (the final compound) receives the declarations. :is() and
+// :where() offer alternative subjects; :not() and :has() only filter them.
+function subjectMatches(selector, predicate, allowUniversal = true, requireAllAlternatives = false) {
+  const start = selector.nodes.findLastIndex((node) => node.type === 'combinator') + 1;
+  const subject = selector.nodes.slice(start).filter((node) => node.type !== 'comment');
+  if (
+    subject.some(
+      (node) => node.type === 'pseudo' && /^(?:::|:(before|after|first-line|first-letter)$)/i.test(node.value)
+    )
+  ) {
+    return false;
+  }
+  const universal = allowUniversal && start === 0 && subject.length === 1;
+  return subject.some((node) =>
+    node.type === 'pseudo' && /^:(is|where)$/i.test(node.value)
+      ? node.nodes[requireAllAlternatives ? 'every' : 'some']((branch) =>
+          subjectMatches(branch, predicate, universal, requireAllAlternatives)
+        )
+      : predicate(node, universal)
+  );
 }
-function selectorIncludesSurface(sel) {
-  return sel.split(',').some((p) => SURFACE_CLASS_RE.test(p.trim().split(/[ >+~]/)[0]));
-}
+
+const rootToken = (node, universal) =>
+  (node.type === 'universal' && universal) ||
+  (node.type === 'tag' && /^(html|body)$/i.test(node.value)) ||
+  (node.type === 'pseudo' && /^:(root|host)$/i.test(node.value));
+const surfaceToken = (node) => node.type === 'class' && node.value === surfaceClass;
+const schemeAttribute = (node) => node.type === 'attribute' && node.attribute === 'data-mantine-color-scheme';
+
+// Mantine's static defaults qualify the root itself or the argument of :host().
+const schemeToken = (node) =>
+  schemeAttribute(node) ||
+  (node.type === 'pseudo' &&
+    node.value.toLowerCase() === ':host' &&
+    node.nodes.length > 0 &&
+    node.nodes.every((branch) => subjectMatches(branch, schemeAttribute, true, true)));
 
 function auditProperties(root) {
   let propertyCount = 0;
@@ -95,7 +116,7 @@ function auditFile(file, propertiesOnly = false) {
   };
 
   const onlyTwVars = (props) => props.every((p) => p.startsWith(TW_PREFIX));
-  const isSchemeBlock = (sel) => /\[data-mantine-color-scheme/.test(sel);
+  const parser = selectorParser();
 
   root.walkRules((rule) => {
     const customProps = rule.nodes?.filter((n) => n.type === 'decl' && n.prop.startsWith('--')) ?? [];
@@ -103,10 +124,16 @@ function auditFile(file, propertiesOnly = false) {
     const props = customProps.map((d) => d.prop);
     const chain = atRuleChain(rule);
     const entry = { selector: rule.selector, chain, count: customProps.length, sample: props.slice(0, 3) };
-    if (selectorTargetsRoot(rule.selector)) {
-      if (isSchemeBlock(rule.selector) && !selectorIncludesSurface(rule.selector)) buckets.schemeStatic.push(entry);
+    // Keyframe offsets aren't element selectors.
+    if (rule.parent?.type === 'atrule' && /keyframes$/i.test(rule.parent.name)) return;
+    const selectors = parser.astSync(rule.selector).nodes;
+    const roots = selectors.filter((selector) => subjectMatches(selector, rootToken));
+    if (roots.length > 0) {
+      const includesSurface = selectors.some((selector) => subjectMatches(selector, surfaceToken));
+      if (!includesSurface && roots.every((selector) => subjectMatches(selector, schemeToken, true, true)))
+        buckets.schemeStatic.push(entry);
       else if (onlyTwVars(props)) buckets.twTransient.push(entry);
-      else if (selectorIncludesSurface(rule.selector)) buckets.rootCompliant.push(entry);
+      else if (includesSurface) buckets.rootCompliant.push(entry);
       else buckets.rootViolation.push(entry);
     } else {
       const key = rule.selector.length > 60 ? rule.selector.slice(0, 60) + '…' : rule.selector;

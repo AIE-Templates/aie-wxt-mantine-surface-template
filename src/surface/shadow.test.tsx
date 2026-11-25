@@ -118,6 +118,34 @@ it('falls back to a <style> when the sheet cannot be adopted', async () => {
   }
 });
 
+it.each([false, true])('preserves a rejected rule and scopes later rules (fallback=%s)', async (fallback) => {
+  const { ui, onMount } = await surface();
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  if (fallback) {
+    vi.spyOn(CSSStyleSheet.prototype, 'replaceSync').mockImplementationOnce(() => {
+      throw new TypeError('constructable sheet unavailable');
+    });
+  }
+  const insert = CSSStyleSheet.prototype.insertRule;
+  vi.spyOn(CSSStyleSheet.prototype, 'insertRule').mockImplementation(function (this: CSSStyleSheet, rule, index) {
+    if (rule.startsWith(':host { --probe')) throw new DOMException('unsupported selector', 'SyntaxError');
+    return insert.call(this, rule, index);
+  });
+  try {
+    ui.mount();
+    expect(onMount).toHaveBeenCalledOnce();
+    const css = fallback
+      ? ui.shadow.querySelectorAll('style')[1]!.textContent
+      : staticText(ui.shadow.adoptedStyleSheets[0]!);
+    expect(css).toContain(':root { --probe: 1px; }');
+    expect(css).toContain(':host([data-token=":root"])::before');
+    expect(warn).toHaveBeenCalledWith('[surface/shadow] could not rewrite selector', ':root', expect.anything());
+    expect(warn).toHaveBeenCalledTimes(fallback ? 2 : 1);
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
 it('shares the host surface sheet object with satellites across theme changes', async () => {
   let env: SurfaceEnv | undefined;
   const { ui } = await surface(
@@ -138,7 +166,9 @@ it('shares the host surface sheet object with satellites across theme changes', 
       </MantineProvider>
     </SurfaceProvider>
   );
+  const scan = vi.spyOn(ui.shadow, 'querySelectorAll');
   const view = render(tree('blue'), { container: env!.rootElement });
+  expect(scan.mock.calls.filter(([selector]) => selector === 'style')).toHaveLength(1);
   const sheetsOf = (handle: typeof first) => handle.hostElement.shadowRoot!.adoptedStyleSheets;
   const hostSheet = ui.shadow.adoptedStyleSheets[0]!;
   const before = [...sheetsOf(first)];

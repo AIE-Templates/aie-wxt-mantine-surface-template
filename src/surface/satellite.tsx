@@ -153,15 +153,6 @@ class SatelliteRegistry {
     this.listeners.forEach((listener) => listener());
   }
 
-  /** Called by SatelliteOutlet once the host surface is mounted. */
-  setStyleSource(shadowRoot: ShadowRoot) {
-    if (this.styleSource === shadowRoot) return;
-    this.styleSource = shadowRoot;
-    this.sheets = [];
-    this.parsed.clear();
-    this.refreshSheets();
-  }
-
   /**
    * Rebuild the satellites' sheets in the host surface's cascade order: every
    * <style> in the host shadow root (WXT's `:host` reset, the Mantine
@@ -176,9 +167,11 @@ class SatelliteRegistry {
    * This allows satellites to inherit the host surface's rem scale automatically,
    * matching the shared-variable dependency that the host surface uses.
    */
-  refreshSheets() {
-    const source = this.styleSource;
-    if (!source) return;
+  refreshSheets(source: ShadowRoot) {
+    if (source !== this.styleSource) {
+      this.styleSource = source;
+      this.parsed.clear();
+    }
 
     this.cssTexts = [...source.querySelectorAll('style')].flatMap((styleEl) => styleEl.textContent || []);
     if (this.useConstructableSheets) {
@@ -416,16 +409,12 @@ export function SatelliteOutlet() {
   const theme = useMantineTheme();
   const { dir } = useDirection();
 
-  useEffect(() => {
-    if (env.kind === 'shadow' && env.shadowRoot) satellites.setStyleSource(env.shadowRoot);
-  }, [env]);
-
   // Theme object identity changes on primary-color/theme updates, and the
   // in-tree Mantine variables <style> may also be rewritten on color-scheme
   // flips — re-capture the shared sheets on either signal.
   useEffect(() => {
-    satellites.refreshSheets();
-  }, [theme, computedColorScheme]);
+    if (env.kind === 'shadow' && env.shadowRoot) satellites.refreshSheets(env.shadowRoot);
+  }, [env.kind, env.shadowRoot, theme, computedColorScheme]);
 
   useLayoutEffect(() => {
     satellites.setAppearance(computedColorScheme, dir);

@@ -118,7 +118,7 @@ export default function inlineSurfaceCss(): Plugin {
 export function prepareShadowCss(css: string): string {
   const root = postcss.parse(css);
   root.walkRules((rule) => {
-    rule.selector = shadowRootSelector(rule.selector);
+    rule.selector = shadowRootSelector(rule.raws.selector?.raw ?? rule.selector);
   });
   const registered: string[] = [];
   root.walkAtRules('property', (rule) => {

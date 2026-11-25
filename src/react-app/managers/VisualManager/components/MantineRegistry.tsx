@@ -123,7 +123,7 @@ export default function MantineRegistry({
       };
     }
     return merged;
-  }, [env, isShadow, palette]);
+  }, [env.portalTarget, env.scale, isShadow, palette]);
 
   // An external source is opt-in; the core never imports host detection.
   const source = typeof env.colorSchemeStrategy === 'object' ? env.colorSchemeStrategy : undefined;

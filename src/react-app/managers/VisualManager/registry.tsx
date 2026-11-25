@@ -80,16 +80,6 @@ function VisualStateBridge({
     () => onDirectionChange(direction === 'ltr' ? 'rtl' : 'ltr'),
     [onDirectionChange, direction]
   );
-  const setPrimaryColor = useCallback(
-    (next: VisualPrimaryColor) => {
-      onPrimaryColorChange(next);
-      primaryColorPreference.setValue(next).catch((error) => {
-        console.warn('[VisualManager] failed to persist primary color', error);
-      });
-    },
-    [onPrimaryColorChange]
-  );
-
   return (
     <VisualContextProvider
       colorScheme={colorScheme}
@@ -100,7 +90,7 @@ function VisualStateBridge({
       toggleColorScheme={toggleColorScheme}
       setDirection={onDirectionChange}
       toggleDirection={toggleDirection}
-      setPrimaryColor={setPrimaryColor}
+      setPrimaryColor={onPrimaryColorChange}
     >
       {children}
     </VisualContextProvider>
@@ -176,7 +166,13 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
   );
 
   const onPrimaryColorChange = useCallback(
-    (primaryColor: VisualPrimaryColor) => update('primaryColor', primaryColor),
+    (next: VisualPrimaryColor) => {
+      const { preference } = resolvePrimaryColor(next);
+      update('primaryColor', preference);
+      primaryColorPreference.setValue(preference).catch((error) => {
+        console.warn('[VisualManager] failed to persist primary color', error);
+      });
+    },
     [update]
   );
 

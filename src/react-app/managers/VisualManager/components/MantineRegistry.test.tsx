@@ -120,21 +120,26 @@ it('updates external schemes and cleans up when the source changes or unmounts',
       stop();
     };
   });
+  const palette = resolvePrimaryColor('blue').theme;
+  let theme!: ReturnType<typeof useMantineTheme>;
+  function Probe() {
+    theme = useMantineTheme();
+    return null;
+  }
   const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
     <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
-      <MantineRegistry
-        colorScheme="auto"
-        direction="ltr"
-        palette={resolvePrimaryColor('blue').theme}
-        onDirectionChange={() => {}}
-      />
+      <MantineRegistry colorScheme="auto" direction="ltr" palette={palette} onDirectionChange={() => {}}>
+        <Probe />
+      </MantineRegistry>
     </SurfaceProvider>
   );
   const view = render(app(first), { container: env.rootElement });
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('light');
   act(() => first.set('dark'));
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
+  const firstTheme = theme;
   view.rerender(app(second));
+  expect(theme).toBe(firstTheme);
   expect(off).toHaveBeenCalledTimes(1);
   act(() => first.set('light'));
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
@@ -324,6 +329,30 @@ it('falls back safely when a stored primaryColor is invalid, missing, or inherit
     }
     expect(resolvePrimaryColor('removed', 'also-removed').preference).toBe(DEFAULT_THEME.primaryColor);
     expect(warn).toHaveBeenCalledTimes(invalidValues.length + 1);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it('persists the displayed fallback when a new primary color is invalid', async () => {
+  const env = shadowEnv();
+  await visualPrimaryColorStorage.setValue('red');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  function Probe() {
+    const visual = useVisual();
+    return <button onClick={() => visual.setPrimaryColor('removedPalette')}>{visual.primaryColor}</button>;
+  }
+  try {
+    const view = render(
+      <SurfaceProvider env={env}>
+        <VisualManagerRegistry persistentState={{ colorScheme: 'light', direction: 'ltr', primaryColor: 'red' }}>
+          <Probe />
+        </VisualManagerRegistry>
+      </SurfaceProvider>
+    );
+    fireEvent.click(view.getByRole('button', { name: 'red' }));
+    expect(view.getByRole('button').textContent).toBe(DEFAULT_PRIMARY_COLOR);
+    await waitFor(async () => expect(await visualPrimaryColorStorage.getValue()).toBe(DEFAULT_PRIMARY_COLOR));
   } finally {
     warn.mockRestore();
   }
