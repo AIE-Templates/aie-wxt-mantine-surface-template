@@ -12,6 +12,23 @@
 
 方向是扩展级偏好，由 `useVisual()` 提供设置、持久化和跨 Surface 同步。方向写入各 Surface 和 Satellite 自有根节点，不修改宿主网页的 `<html>`。独立扩展页面拥有自己的 `<html>`，可以正常设置它。语言与方向的映射由应用决定。
 
+## 按组件引入 Mantine 样式
+
+如果下游项目的组件集合固定，可以替换 `src/react-app/styles/global.css` 中的 `@mantine/core/styles.layer.css`，保留现有的层顺序。带加载状态的 Button 需要以下样式。
+
+```css
+@import '@mantine/core/styles/baseline.layer.css';
+@import '@mantine/core/styles/default-css-variables.layer.css';
+@import '@mantine/core/styles/global.layer.css';
+@import '@mantine/core/styles/UnstyledButton.layer.css';
+@import '@mantine/core/styles/Loader.layer.css';
+@import '@mantine/core/styles/Button.layer.css';
+```
+
+按所有 surface 实际渲染的组件补全列表，包括 Select、弹窗、通知内部使用的组件，并保留通知包的样式。分别构建两个浏览器版本，运行 CSS 与 surface 审计，对比改动前后 `surface-css/content.css` 的字节数，再到 shadow surface 中操作这些组件。[Mantine 样式文件与依赖顺序](https://mantine.dev/styles/css-files-list/)
+
+PostCSS 自动处理普通的 `:root, :host` 组合。第三方样式如果只在 `:root` 上声明变量，可以给依赖打补丁，在同一规则的选择器列表中加入 `.aie-surface-root`（使用项目自己的前缀），保留原来的层和主题限定条件。默认的虚拟模块在构建时改写根选择器。扩展保留了 `parsel-js`，供直接向 `createShadowSurfaceUi` 传入原始 CSS 的调用方使用。
+
 ## 动态明暗主题接口
 
 除 `extension`、`force-light`、`force-dark` 策略外，也可以传入一个可订阅的数据源，动态控制单个 Surface 的明暗主题：

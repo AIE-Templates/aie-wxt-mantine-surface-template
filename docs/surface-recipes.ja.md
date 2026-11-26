@@ -12,6 +12,23 @@
 
 方向は拡張全体の設定で、`useVisual()` が設定、永続化、Surface 間の同期を提供します。`dir` は各 Surface と Satellite のルートに設定し、ホストページの `<html>` は変更しません。独立した拡張ページは自分の `<html>` を所有するため、その更新は意図した動作です。言語から方向への対応付けはアプリケーションが担当します。
 
+## Mantine のスタイルをコンポーネント単位で読み込む
+
+使用するコンポーネントが決まっている場合は、`src/react-app/styles/global.css` の `@mantine/core/styles.layer.css` を置き換えます。レイヤーの順序を維持してください。読み込み中の状態を持つ Button の例です。
+
+```css
+@import '@mantine/core/styles/baseline.layer.css';
+@import '@mantine/core/styles/default-css-variables.layer.css';
+@import '@mantine/core/styles/global.layer.css';
+@import '@mantine/core/styles/UnstyledButton.layer.css';
+@import '@mantine/core/styles/Loader.layer.css';
+@import '@mantine/core/styles/Button.layer.css';
+```
+
+すべての surface で使うコンポーネントと、Select、モーダル、通知が内部で使うコンポーネントのスタイルを追加します。通知パッケージのスタイルも残してください。両ブラウザー向けにビルドして CSS と surface の監査を実行し、変更前後の `surface-css/content.css` のバイト数を比較して、shadow surface 上で各コンポーネントを操作してください。[Mantine の CSS ファイルと依存順序](https://mantine.dev/styles/css-files-list/)
+
+PostCSS は通常の `:root, :host` の組を自動処理します。第三者の CSS が単独の `:root` 上で変数を宣言する場合は、元のルールのセレクターリストにプロジェクトの接頭辞を使った `.aie-surface-root` を追加するパッチを適用し、レイヤーとテーマ条件を維持します。既定の仮想モジュールはビルド時にルートセレクターを書き換えます。生の CSS を `createShadowSurfaceUi` に渡す場合に備えて、拡張機能には `parsel-js` も含まれます。
+
 ## 動的な明暗テーマ
 
 `extension`、`force-light`、`force-dark` のほかに、購読可能なデータソースを渡して、Surface の表示を動的に制御することもできます。

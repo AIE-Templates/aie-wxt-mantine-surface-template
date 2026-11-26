@@ -8,9 +8,12 @@
  */
 
 import type { MantineColorScheme, MantineColorSchemeManager } from '@mantine/core';
-import { colorSchemePreference } from './storages';
+import { colorSchemePreference, visualColorSchemeStorage } from './storages';
 
-export function extStorageColorSchemeManager(initialColorScheme?: MantineColorScheme): MantineColorSchemeManager {
+export function extStorageColorSchemeManager(
+  initialColorScheme?: MantineColorScheme,
+  onPreferenceChange?: (value: MantineColorScheme) => void
+): MantineColorSchemeManager {
   // Mantine's `get` is synchronous while WXT storage is async; track the
   // last known value in a closure, seeded from the hydrated initial state.
   let currentColorScheme = initialColorScheme;
@@ -24,6 +27,7 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
   let applyingStoredValue = false;
   const applyStored = (onUpdate: (value: MantineColorScheme) => void, value: MantineColorScheme) => {
     currentColorScheme = value;
+    onPreferenceChange?.(value);
     applyingStoredValue = true;
     try {
       onUpdate(value);
@@ -38,6 +42,7 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
       revision++;
       currentColorScheme = value;
       if (applyingStoredValue) return;
+      onPreferenceChange?.(value);
       colorSchemePreference.setValue(value).catch((error) => {
         console.warn('[VisualManager] failed to persist color scheme', error);
       });
@@ -71,6 +76,7 @@ export function extStorageColorSchemeManager(initialColorScheme?: MantineColorSc
     clear: () => {
       revision++;
       currentColorScheme = undefined;
+      onPreferenceChange?.(visualColorSchemeStorage.fallback);
       colorSchemePreference.removeValue().catch((error) => {
         console.warn('[VisualManager] failed to clear color scheme', error);
       });

@@ -7,7 +7,7 @@
  * and handling React events across shadow trees with proper lifecycle management.
  */
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Group, Paper, Popover, Text, TextInput, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { createSatellite, type SatelliteHandle } from '@/surface/satellite';
@@ -60,10 +60,11 @@ function SatelliteBadge({ index }: { index: number }) {
 export default function ContentApp() {
   const satellitesRef = useRef<SatelliteHandle[]>([]);
 
-  const destroySatellites = () => {
+  const destroySatellites = useCallback(() => {
     satellitesRef.current.forEach((satellite) => satellite.destroy());
     satellitesRef.current = [];
-  };
+  }, []);
+  useEffect(() => destroySatellites, [destroySatellites]);
 
   // Idempotent on purpose: re-clicking respawns instead of stacking a second
   // satellite on every anchor (this button doubles as a manual-test fixture).

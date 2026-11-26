@@ -51,7 +51,7 @@ function syncedPreference<T>(item: {
     item
       .getValue()
       .then((value) => {
-        if (revision === readRevision) listeners.forEach((listener) => listener(value));
+        if (revision === readRevision) [...listeners].forEach((listener) => listener(value));
       })
       .catch((error) => console.warn('[VisualManager] failed to refresh preference', error));
   };

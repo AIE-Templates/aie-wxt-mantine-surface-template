@@ -24,6 +24,7 @@ function paletteFor(value: unknown): PrimaryPalette | undefined {
       return {
         preference: value,
         theme: {
+          // A HEX preference replaces any appTheme palette named 'primary' while selected.
           primaryColor: 'primary',
           primaryShade: baseColorIndex as MantineColorShade,
           colors: { primary: colors.map((color) => color.hex()) as unknown as MantineColorsTuple },

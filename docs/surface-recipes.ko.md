@@ -12,6 +12,23 @@
 
 방향은 확장 전체의 설정이며 `useVisual()`이 설정, 저장, Surface 간 동기화를 제공합니다. `dir`은 각 Surface와 Satellite의 자체 루트에 기록하며 호스트 페이지의 `<html>`은 수정하지 않습니다. 독립된 확장 페이지는 자신의 `<html>`을 소유하므로 이를 수정하는 것이 정상입니다. 언어와 방향의 연결은 애플리케이션이 결정합니다.
 
+## 사용하는 Mantine 컴포넌트의 스타일만 불러오기
+
+사용할 컴포넌트가 정해져 있다면 `src/react-app/styles/global.css`의 `@mantine/core/styles.layer.css`를 교체하고 기존 레이어 순서를 유지합니다. 로딩 상태가 있는 Button에 필요한 예시입니다.
+
+```css
+@import '@mantine/core/styles/baseline.layer.css';
+@import '@mantine/core/styles/default-css-variables.layer.css';
+@import '@mantine/core/styles/global.layer.css';
+@import '@mantine/core/styles/UnstyledButton.layer.css';
+@import '@mantine/core/styles/Loader.layer.css';
+@import '@mantine/core/styles/Button.layer.css';
+```
+
+모든 surface에서 사용하는 컴포넌트와 Select, 모달, 알림이 내부에서 사용하는 컴포넌트의 스타일을 추가합니다. 알림 패키지의 스타일도 유지합니다. 두 브라우저용 빌드와 CSS 및 surface 감사를 실행한 뒤 변경 전후 `surface-css/content.css`의 바이트 수를 비교하고 shadow surface에서 컴포넌트를 직접 확인합니다. [Mantine CSS 파일과 의존성 순서](https://mantine.dev/styles/css-files-list/)
+
+PostCSS는 기본 `:root, :host` 쌍을 자동 처리합니다. 외부 스타일시트가 단독 `:root`에 변수를 선언한다면 의존성에 패치를 적용해 같은 규칙의 선택자 목록에 프로젝트 접두사를 사용한 `.aie-surface-root`를 추가하고 레이어와 테마 조건을 유지합니다. 기본 가상 모듈은 빌드 시점에 루트 선택자를 변환합니다. 확장 프로그램에는 `createShadowSurfaceUi`에 원본 CSS를 전달하는 호출자를 위해 `parsel-js`도 포함됩니다.
+
 ## 동적 밝은/어두운 테마
 
 `extension`, `force-light`, `force-dark` 전략 외에 구독 가능한 데이터 소스를 전달해 Surface의 테마를 동적으로 제어할 수도 있습니다.

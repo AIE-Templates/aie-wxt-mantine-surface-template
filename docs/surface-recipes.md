@@ -12,6 +12,23 @@ Merge order is application theme → selected primary color → surface isolatio
 
 Direction is an extension-wide preference exposed by `useVisual()`. It is written to each surface's own root and satellite roots, never to the host page's `<html>`. Document surfaces own their `<html>`, so writing there is intentional. Language-to-direction mapping belongs to the application.
 
+## Load styles for selected Mantine components
+
+In a fork with a fixed component set, replace the single `@mantine/core/styles.layer.css` import in `src/react-app/styles/global.css`. Keep the existing layer order. A Button with a loading state needs these imports:
+
+```css
+@import '@mantine/core/styles/baseline.layer.css';
+@import '@mantine/core/styles/default-css-variables.layer.css';
+@import '@mantine/core/styles/global.layer.css';
+@import '@mantine/core/styles/UnstyledButton.layer.css';
+@import '@mantine/core/styles/Loader.layer.css';
+@import '@mantine/core/styles/Button.layer.css';
+```
+
+Extend this list for every component rendered across your surfaces, including those used internally by Select, modals and notifications. Keep the notifications package stylesheet. Build and run the CSS and surface audits for both browsers, then compare the byte size of `surface-css/content.css` before and after and exercise the components in a shadow surface. [Mantine CSS files and dependency order](https://mantine.dev/styles/css-files-list/)
+
+The PostCSS plugin automatically anchors plain `:root, :host` pairs. For a third-party stylesheet with variables on a standalone `:root`, patch the vendor rule to include `.aie-surface-root` in the same selector list (use your project prefix). Preserve the layer and any theme qualifiers on the added branch. The default virtual module rewrites root selectors at build time. The extension also includes `parsel-js` to support callers passing raw CSS to `createShadowSurfaceUi`.
+
 ## Externally controlled light/dark mode
 
 Besides the `extension`, `force-light`, and `force-dark` strategies, a `ColorSchemeSource` can provide the surface's resolved scheme without changing the stored extension preference:

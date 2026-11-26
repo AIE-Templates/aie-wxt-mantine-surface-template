@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-syntax -- Tests inspect the host document to prove surface isolation. */
 import { DEFAULT_THEME, Portal, useDirection, useMantineTheme, virtualColor } from '@mantine/core';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
 import { followHostColorScheme } from '@/surface/addons/host-scheme';
 import { createColorSchemeSource } from '@/surface/color-scheme';
 import { SurfaceProvider } from '@/surface/context';
@@ -10,6 +10,7 @@ import { documentSurface } from '@/surface/document';
 import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
 import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
+import { extStorageColorSchemeManager } from '../colorSchemeManager';
 import { useVisual } from '../context';
 import { resolvePrimaryColor } from '../primaryColor';
 import VisualManagerRegistry from '../registry';
@@ -34,6 +35,11 @@ vi.mock('@/react-app/theme', async () => {
       },
     },
   };
+});
+
+let testColorSchemeManager: ReturnType<typeof extStorageColorSchemeManager>;
+beforeEach(() => {
+  testColorSchemeManager = extStorageColorSchemeManager();
 });
 
 function shadowEnv(): SurfaceEnv {
@@ -128,7 +134,13 @@ it('updates external schemes and cleans up when the source changes or unmounts',
   }
   const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
     <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
-      <MantineRegistry colorScheme="auto" direction="ltr" palette={palette} onDirectionChange={() => {}}>
+      <MantineRegistry
+        colorSchemeManager={testColorSchemeManager}
+        colorScheme="auto"
+        direction="ltr"
+        palette={palette}
+        onDirectionChange={() => {}}
+      >
         <Probe />
       </MantineRegistry>
     </SurfaceProvider>
@@ -159,6 +171,7 @@ it('connects the optional host detector without mutating the host', async () => 
   render(
     <SurfaceProvider env={env}>
       <MantineRegistry
+        colorSchemeManager={testColorSchemeManager}
         colorScheme="dark"
         direction="ltr"
         palette={resolvePrimaryColor('blue').theme}
@@ -188,6 +201,7 @@ it('preserves application tokens and virtual colors while surface defaults win',
   const app = (primaryColor: string) => (
     <SurfaceProvider env={env}>
       <MantineRegistry
+        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor(primaryColor).theme}
@@ -218,6 +232,7 @@ it('sets direction on an owned document and restores its original attribute on u
   const view = render(
     <SurfaceProvider env={env}>
       <MantineRegistry
+        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor('blue').theme}
@@ -261,6 +276,8 @@ it('catches up on preferences changed between the initial read and mount', async
   await visualColorSchemeStorage.setValue('dark');
   await visualDirectionStorage.setValue('rtl');
   await visualPrimaryColorStorage.setValue('red');
+  const readScheme = vi.spyOn(visualColorSchemeStorage, 'getValue');
+  onTestFinished(() => readScheme.mockRestore());
   function Probe() {
     const visual = useVisual();
     return <span data-testid="primary">{visual.primaryColor}</span>;
@@ -276,6 +293,7 @@ it('catches up on preferences changed between the initial read and mount', async
   await waitFor(() => expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark'));
   expect(env.rootElement.getAttribute('dir')).toBe('rtl');
   expect(view.getByTestId('primary').textContent).toBe('red');
+  expect(readScheme).toHaveBeenCalledTimes(1);
 });
 
 it('a local change during the catch-up read wins over the read', async () => {
@@ -368,6 +386,7 @@ it('configures shadow isolation defaults on ModalRoot, DrawerRoot, Affix, and Fl
   render(
     <SurfaceProvider env={env}>
       <MantineRegistry
+        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor('blue').theme}

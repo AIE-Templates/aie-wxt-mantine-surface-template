@@ -13,7 +13,7 @@
  * Internal component; application code renders ManagersRegistry instead.
  */
 
-import { useLayoutEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { useLayoutEffect, useMemo, useSyncExternalStore, type PropsWithChildren } from 'react';
 import {
   Affix,
   Combobox,
@@ -28,6 +28,7 @@ import {
   Modal,
   Popover,
   Tooltip,
+  type MantineColorSchemeManager,
   type MantineThemeOverride,
 } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
@@ -35,7 +36,6 @@ import { Notifications } from '@mantine/notifications';
 import { useSurface } from '@/surface/context';
 import { appTheme } from '@/react-app/theme';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
-import { extStorageColorSchemeManager } from '../colorSchemeManager';
 import type { VisualColorScheme, VisualDirection } from '../defs';
 import type { PrimaryPalette } from '../primaryColor';
 
@@ -43,6 +43,7 @@ const noopSubscribe = () => () => {};
 const lightSnapshot = () => 'light' as const;
 
 export interface MantineRegistryProps extends PropsWithChildren {
+  colorSchemeManager: MantineColorSchemeManager;
   colorScheme: VisualColorScheme;
   direction: VisualDirection;
   palette: PrimaryPalette['theme'];
@@ -50,6 +51,7 @@ export interface MantineRegistryProps extends PropsWithChildren {
 }
 
 export default function MantineRegistry({
+  colorSchemeManager,
   colorScheme,
   direction,
   palette,
@@ -58,7 +60,6 @@ export default function MantineRegistry({
 }: MantineRegistryProps) {
   const env = useSurface();
   const isShadow = env.kind === 'shadow';
-  const [colorSchemeManager] = useState(() => extStorageColorSchemeManager(colorScheme));
 
   const theme = useMemo(() => {
     const overrides: MantineThemeOverride = {

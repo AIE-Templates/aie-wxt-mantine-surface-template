@@ -65,7 +65,7 @@ function getStore<T>(item: ReactiveStorageItem<T>): SnapshotStore<T> {
   const publish = (value: T) => {
     if (Object.is(store.value, value)) return;
     store.value = value;
-    for (const listener of listeners) listener();
+    for (const listener of [...listeners]) listener();
   };
   const read = () => {
     const readRevision = ++revision;
