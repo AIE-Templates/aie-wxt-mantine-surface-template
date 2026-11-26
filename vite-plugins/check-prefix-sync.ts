@@ -76,7 +76,7 @@ export function findPrefixMismatches(globalCss: string, prefix: string): string[
     if (!rule.selector.includes('surface-root')) return;
     selectorParser((selectors) => {
       selectors.walkClasses(({ value }) => {
-        if (value.endsWith('-surface-root')) surfaceClasses.add(value);
+        if (value === 'surface-root' || value.endsWith('-surface-root')) surfaceClasses.add(value);
       });
     }).processSync(rule.selector);
   });

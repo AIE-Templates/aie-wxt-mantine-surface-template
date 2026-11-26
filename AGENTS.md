@@ -7,6 +7,8 @@ Please review `README.md` for the overall architecture and setup instructions. T
 ## Current Setup
 The template uses Mantine 9.3.1 and React 19.2, and includes Vitest for logic and DOM tests. The core codebase provides foundational extension features, while application-specific logic should be added as needed.
 
+The pnpm patch for `@mantine/core@9.3.1` makes the provider track storage updates while a surface forces its visible color scheme. When upgrading Mantine, run the forced/external-to-extension cases in `MantineRegistry.test.tsx` against the unpatched release before deciding whether to carry the patch forward.
+
 ## Critical Requirements
 To ensure the extension functions correctly and avoids conflicts with host pages, please adhere to the following rules:
 

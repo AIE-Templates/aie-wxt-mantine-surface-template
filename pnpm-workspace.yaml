@@ -1,0 +1,2 @@
+patchedDependencies:
+  '@mantine/core@9.3.1': patches/@mantine__core@9.3.1.patch

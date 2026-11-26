@@ -21,9 +21,8 @@ export function extStorageColorSchemeManager(
   // Bumped by every newer source of truth (watch event, local set, new or
   // ended subscription) so a catch-up read cannot overwrite it.
   let revision = 0;
-  // Mantine subscribes with its own setter, which calls `set`. A value that
-  // came FROM storage must not be written back: with two quick changes the
-  // echoes of each would chase each other between surfaces forever.
+  // A subscriber may call set (as unpatched Mantine does). Writing a storage
+  // notification back can create an echo loop between surfaces.
   let applyingStoredValue = false;
   const applyStored = (onUpdate: (value: MantineColorScheme) => void, value: MantineColorScheme) => {
     currentColorScheme = value;

@@ -450,6 +450,45 @@ it('updates visual.setColorScheme when strategy changes from forced to extension
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');
 });
 
+it.each(['force-light', 'external source'] as const)(
+  'keeps the stored scheme in sync across %s and extension without remounting',
+  async (mode) => {
+    const env = shadowEnv();
+    const forced = mode === 'force-light' ? mode : createColorSchemeSource('light');
+    await visualColorSchemeStorage.setValue('light');
+    const write = vi.spyOn(visualColorSchemeStorage, 'setValue');
+    onTestFinished(() => write.mockRestore());
+    function Probe() {
+      const { colorScheme, activeColorScheme } = useVisual();
+      return <output>{[colorScheme, activeColorScheme].join(' / ')}</output>;
+    }
+    const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
+      <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
+        <VisualManagerRegistry persistentState={{ direction: 'ltr', colorScheme: 'light', primaryColor: 'blue' }}>
+          <Probe />
+        </VisualManagerRegistry>
+      </SurfaceProvider>
+    );
+    const view = render(app(forced), { container: env.rootElement });
+    const output = view.getByRole('status');
+    await act(async () => {
+      await visualColorSchemeStorage.setValue('dark');
+    });
+    expect(output.textContent).toBe('dark / light');
+    expect(env.rootElement.dataset.mantineColorScheme).toBe('light');
+
+    view.rerender(app('extension'));
+    expect(output.textContent).toBe('dark / dark');
+    expect(env.rootElement.dataset.mantineColorScheme).toBe('dark');
+    await act(async () => {
+      await visualColorSchemeStorage.setValue('light');
+    });
+    expect(output.textContent).toBe('light / light');
+    expect(env.rootElement.dataset.mantineColorScheme).toBe('light');
+    expect(write).toHaveBeenCalledTimes(2);
+  }
+);
+
 it.each(['force-dark', 'external source'] as const)(
   'toggles the saved preference independently of %s',
   async (strategy) => {
