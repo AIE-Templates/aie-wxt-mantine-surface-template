@@ -201,7 +201,7 @@ Surface と Satellite は、ホストページのショートカットが発火�
 
 ### 厳格な CSP との互換性
 
-ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——共有の adopted スタイルシート、WXT の `:host` リセット、Mantine のテーマ変数——そのためホストの `style-src`/`script-src` は届きません。ホストの `<head>` には何も追加されません。`@property` ルールは shadow root 内では効かないため、ビルド時に surface CSS から取り除き、代わりに Tailwind の要素ごとのフォールバックでこれらの変数を設定します。その代償として、型付きの `--tw-*` 値（グラデーションの色停止点など）はそこではトランジションで補間されません。Mantine がカラースキーム切替時に注入する遷移用 `<style>` は `keepTransitions: true` で無効化しています。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
+ホストページが厳格な Content-Security-Policy（例: `script-src 'self'; style-src 'self'; style-src-attr 'none'`、`unsafe-inline` なし）を設定していても、surface は正常に動作します。コンテンツスクリプトの JS は isolated world で実行され（ページではなく拡張機能自身の CSP に従う）、すべてのスタイルは shadow root 内に配置されます——共有の adopted スタイルシート、WXT の `:host` リセット、Mantine のテーマ変数——そのためホストの `style-src`/`script-src` は届きません。ホストの `<head>` には何も追加されません。`@property` ルールは shadow root 内では効かないため、ビルド時に surface CSS から取り除き、代わりに Tailwind の要素ごとのフォールバックでこれらの変数を設定します。その代償として、型付きの `--tw-*` 値（グラデーションの色停止点など）はそこではトランジションで補間されません。テーマの変更には `useVisual()` を使います。`forceColorScheme` を指定していても、Mantine 標準のカラースキーム setter を既定のオプションで呼ぶと、ホストの `<head>` に一時的なスタイルが追加されることがあります。`pnpm build` 後に `test-pages/csp-strict-host.html` で検証してください。
 
 ---
 

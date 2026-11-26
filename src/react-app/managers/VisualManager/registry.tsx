@@ -3,103 +3,33 @@
  *
  * Orchestrator of the visual subsystem: owns React state for visual
  * preferences, persists them to WXT storage, and keeps every surface in
- * sync by watching the same storage items (color scheme syncs through the
- * colorSchemeManager; direction/primary color are watched here).
+ * sync by watching the same storage items.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useSurface } from '@/surface/context';
-import { extStorageColorSchemeManager } from './colorSchemeManager';
+import { getSystemColorScheme, useSurfaceColorScheme } from '@/surface/use-color-scheme';
 import MantineRegistry from './components/MantineRegistry';
 import VisualContextProvider from './context';
 import type { VisualColorScheme, VisualDirection, VisualPrimaryColor } from './defs';
 import type { VisualPersistentState } from './persistent-util';
 import { resolvePrimaryColor } from './primaryColor';
-import { directionPreference, primaryColorPreference } from './storages';
-
-interface VisualStateBridgeProps extends PropsWithChildren {
-  colorScheme: VisualColorScheme;
-  direction: VisualDirection;
-  primaryColor: VisualPrimaryColor;
-  setStoredColorScheme: (colorScheme: VisualColorScheme) => void;
-  onDirectionChange: (direction: VisualDirection) => void;
-  onPrimaryColorChange: (primaryColor: VisualPrimaryColor) => void;
-}
-
-/**
- * Lives inside MantineProvider; consumes Mantine's raw hooks and exposes
- * unified change handlers through the VisualContext. Persistence rules:
- * in `'extension'` mode, color scheme is written once by the colorSchemeManager
- * (via Mantine); under forced/external schemes Mantine's setter is a no-op, so
- * this bridge persists the preference directly. Direction and primary color are
- * always persisted by the manager registry / bridge.
- */
-function VisualStateBridge({
-  children,
-  colorScheme,
-  direction,
-  primaryColor,
-  setStoredColorScheme,
-  onDirectionChange,
-  onPrimaryColorChange,
-}: VisualStateBridgeProps) {
-  const env = useSurface();
-  // keepTransitions: true is required for host isolation, not just for aesthetics.
-  // Without it, Mantine's color-scheme toggle injects a global `*{transition:none}`
-  // <style> tag into document.head (the host page) for ~10ms on every switch,
-  // causing an unintended mutation. Do not remove this option.
-  // (Side effect: our own UI animates the theme switch instead of hard-cutting,
-  // which is acceptable. A scoped anti-flash inside the shadow root would need a
-  // custom implementation.)
-  const { setColorScheme: mantineSetColorScheme } = useMantineColorScheme({ keepTransitions: true });
-  const activeColorScheme = useComputedColorScheme('light');
-  // Forced/external surfaces still edit the saved preference through the same manager.
-  const setColorScheme = env.colorSchemeStrategy === 'extension' ? mantineSetColorScheme : setStoredColorScheme;
-  const toggleColorScheme = useCallback(() => {
-    // Resolve the saved 'auto' preference at click time, even on a forced surface.
-    const dark =
-      colorScheme === 'auto' ? window.matchMedia('(prefers-color-scheme: dark)').matches : colorScheme === 'dark';
-    setColorScheme(dark ? 'light' : 'dark');
-  }, [setColorScheme, colorScheme]);
-  const toggleDirection = useCallback(
-    () => onDirectionChange(direction === 'ltr' ? 'rtl' : 'ltr'),
-    [onDirectionChange, direction]
-  );
-  return (
-    <VisualContextProvider
-      colorScheme={colorScheme}
-      activeColorScheme={activeColorScheme}
-      direction={direction}
-      primaryColor={primaryColor}
-      setColorScheme={setColorScheme}
-      toggleColorScheme={toggleColorScheme}
-      setDirection={onDirectionChange}
-      toggleDirection={toggleDirection}
-      setPrimaryColor={onPrimaryColorChange}
-    >
-      {children}
-    </VisualContextProvider>
-  );
-}
+import { colorSchemePreference, directionPreference, primaryColorPreference } from './storages';
 
 export interface VisualManagerRegistryProps extends PropsWithChildren {
   persistentState: VisualPersistentState;
 }
 
-type VisualKey = Exclude<keyof VisualPersistentState, 'colorScheme'>;
+type VisualKey = keyof VisualPersistentState;
 
 const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegistryProps) => {
   const [state, setState] = useState(persistentState);
-  const [colorSchemeManager] = useState(() =>
-    extStorageColorSchemeManager(persistentState.colorScheme, (colorScheme) => {
-      setState((s) => (s.colorScheme === colorScheme ? s : { ...s, colorScheme }));
-    })
-  );
+  const env = useSurface();
+  const activeColorScheme = useSurfaceColorScheme(state.colorScheme, env.colorSchemeStrategy);
   const palette = useMemo(() => resolvePrimaryColor(state.primaryColor), [state.primaryColor]);
   // Per preference: bumped by every newer value (watch event, local change)
   // so a catch-up read cannot overwrite it.
-  const revisions = useRef<Record<VisualKey, number>>({ direction: 0, primaryColor: 0 });
+  const revisions = useRef<Record<VisualKey, number>>({ colorScheme: 0, direction: 0, primaryColor: 0 });
   const update = useCallback(<K extends VisualKey>(key: K, value: VisualPersistentState[K]) => {
     revisions.current[key]++;
     setState((s) => (s[key] === value ? s : { ...s, [key]: value }));
@@ -130,12 +60,31 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
         });
       return unwatch;
     };
-    const unwatchers = [follow('direction', directionPreference), follow('primaryColor', primaryColorPreference)];
+    const unwatchers = [
+      follow('colorScheme', colorSchemePreference),
+      follow('direction', directionPreference),
+      follow('primaryColor', primaryColorPreference),
+    ];
     return () => {
       active = false;
       unwatchers.forEach((unwatch) => unwatch());
     };
   }, [update]);
+
+  const setColorScheme = useCallback(
+    (next: VisualColorScheme) => {
+      update('colorScheme', next);
+      colorSchemePreference.setValue(next).catch((error) => {
+        console.warn('[VisualManager] failed to persist color scheme', error);
+      });
+    },
+    [update]
+  );
+
+  const toggleColorScheme = useCallback(() => {
+    const saved = state.colorScheme === 'auto' ? getSystemColorScheme() : state.colorScheme;
+    setColorScheme(saved === 'dark' ? 'light' : 'dark');
+  }, [state.colorScheme, setColorScheme]);
 
   const setDirection = useCallback(
     (direction: VisualDirection) => {
@@ -158,24 +107,31 @@ const VisualManagerRegistry = ({ persistentState, children }: VisualManagerRegis
     [update]
   );
 
+  const toggleDirection = useCallback(
+    () => setDirection(state.direction === 'ltr' ? 'rtl' : 'ltr'),
+    [state.direction, setDirection]
+  );
+
   return (
     <MantineRegistry
-      colorSchemeManager={colorSchemeManager}
-      colorScheme={state.colorScheme}
+      colorScheme={activeColorScheme}
       direction={state.direction}
       palette={palette.theme}
       onDirectionChange={setDirection}
     >
-      <VisualStateBridge
+      <VisualContextProvider
         colorScheme={state.colorScheme}
+        activeColorScheme={activeColorScheme}
         direction={state.direction}
         primaryColor={palette.preference}
-        setStoredColorScheme={colorSchemeManager.set}
-        onDirectionChange={setDirection}
-        onPrimaryColorChange={onPrimaryColorChange}
+        setColorScheme={setColorScheme}
+        toggleColorScheme={toggleColorScheme}
+        setDirection={setDirection}
+        toggleDirection={toggleDirection}
+        setPrimaryColor={onPrimaryColorChange}
       >
         {children}
-      </VisualStateBridge>
+      </VisualContextProvider>
     </MantineRegistry>
   );
 };

@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@mantine/core@9.3.1':
-    hash: 8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e
-    path: patches/@mantine__core@9.3.1.patch
-
 importers:
 
   .:
@@ -18,16 +13,16 @@ importers:
         version: 9.3.1(chroma-js@3.2.0)
       '@mantine/core':
         specifier: ^9.3.1
-        version: 9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mantine/hooks':
         specifier: ^9.3.1
         version: 9.3.1(react@19.2.7)
       '@mantine/modals':
         specifier: ^9.3.1
-        version: 9.3.1(@mantine/core@9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.3.1(@mantine/core@9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mantine/notifications':
         specifier: ^9.3.1
-        version: 9.3.1(@mantine/core@9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.3.1(@mantine/core@9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@webext-core/messaging':
         specifier: ^4.0.1
         version: 4.0.1
@@ -3649,7 +3644,7 @@ snapshots:
     dependencies:
       chroma-js: 3.2.0
 
-  '@mantine/core@9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/core@9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@floating-ui/react': 0.27.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mantine/hooks': 9.3.1(react@19.2.7)
@@ -3666,16 +3661,16 @@ snapshots:
     dependencies:
       react: 19.2.7
 
-  '@mantine/modals@9.3.1(@mantine/core@9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/modals@9.3.1(@mantine/core@9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@mantine/core': 9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@mantine/core': 9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mantine/hooks': 9.3.1(react@19.2.7)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@mantine/notifications@9.3.1(@mantine/core@9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/notifications@9.3.1(@mantine/core@9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.3.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@mantine/core': 9.3.1(patch_hash=8ffc662cd1e15ddb770240fc6f5497a83aa91faec5e711a88947a3018e30092e)(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@mantine/core': 9.3.1(@mantine/hooks@9.3.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@mantine/hooks': 9.3.1(react@19.2.7)
       '@mantine/store': 9.3.1(react@19.2.7)
       react: 19.2.7

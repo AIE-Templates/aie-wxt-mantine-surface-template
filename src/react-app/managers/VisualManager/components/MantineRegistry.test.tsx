@@ -1,7 +1,8 @@
 /* eslint-disable no-restricted-syntax -- Tests inspect the host document to prove surface isolation. */
+import { Profiler } from 'react';
 import { DEFAULT_THEME, Portal, useDirection, useMantineTheme, virtualColor } from '@mantine/core';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest';
 import { followHostColorScheme } from '@/surface/addons/host-scheme';
 import { createColorSchemeSource } from '@/surface/color-scheme';
 import { SurfaceProvider } from '@/surface/context';
@@ -10,7 +11,6 @@ import { documentSurface } from '@/surface/document';
 import { createSatellite, SatelliteOutlet } from '@/surface/satellite';
 import { DEFAULT_PRIMARY_COLOR } from '@/react-app/theme-defaults';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
-import { extStorageColorSchemeManager } from '../colorSchemeManager';
 import { useVisual } from '../context';
 import { resolvePrimaryColor } from '../primaryColor';
 import VisualManagerRegistry from '../registry';
@@ -35,11 +35,6 @@ vi.mock('@/react-app/theme', async () => {
       },
     },
   };
-});
-
-let testColorSchemeManager: ReturnType<typeof extStorageColorSchemeManager>;
-beforeEach(() => {
-  testColorSchemeManager = extStorageColorSchemeManager();
 });
 
 function shadowEnv(): SurfaceEnv {
@@ -126,7 +121,6 @@ it('updates external schemes and cleans up when the source changes or unmounts',
       stop();
     };
   });
-  const palette = resolvePrimaryColor('blue').theme;
   let theme!: ReturnType<typeof useMantineTheme>;
   function Probe() {
     theme = useMantineTheme();
@@ -134,15 +128,9 @@ it('updates external schemes and cleans up when the source changes or unmounts',
   }
   const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
     <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
-      <MantineRegistry
-        colorSchemeManager={testColorSchemeManager}
-        colorScheme="auto"
-        direction="ltr"
-        palette={palette}
-        onDirectionChange={() => {}}
-      >
+      <VisualManagerRegistry persistentState={{ colorScheme: 'auto', direction: 'ltr', primaryColor: 'blue' }}>
         <Probe />
-      </MantineRegistry>
+      </VisualManagerRegistry>
     </SurfaceProvider>
   );
   const view = render(app(first), { container: env.rootElement });
@@ -170,13 +158,7 @@ it('connects the optional host detector without mutating the host', async () => 
   document.body.style.backgroundColor = 'rgb(255, 255, 255)';
   render(
     <SurfaceProvider env={env}>
-      <MantineRegistry
-        colorSchemeManager={testColorSchemeManager}
-        colorScheme="dark"
-        direction="ltr"
-        palette={resolvePrimaryColor('blue').theme}
-        onDirectionChange={() => {}}
-      />
+      <VisualManagerRegistry persistentState={{ colorScheme: 'dark', direction: 'ltr', primaryColor: 'blue' }} />
     </SurfaceProvider>,
     { container: env.rootElement }
   );
@@ -201,7 +183,6 @@ it('preserves application tokens and virtual colors while surface defaults win',
   const app = (primaryColor: string) => (
     <SurfaceProvider env={env}>
       <MantineRegistry
-        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor(primaryColor).theme}
@@ -232,7 +213,6 @@ it('sets direction on an owned document and restores its original attribute on u
   const view = render(
     <SurfaceProvider env={env}>
       <MantineRegistry
-        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor('blue').theme}
@@ -386,7 +366,6 @@ it('configures shadow isolation defaults on ModalRoot, DrawerRoot, Affix, and Fl
   render(
     <SurfaceProvider env={env}>
       <MantineRegistry
-        colorSchemeManager={testColorSchemeManager}
         colorScheme="light"
         direction="ltr"
         palette={resolvePrimaryColor('blue').theme}
@@ -403,9 +382,80 @@ it('configures shadow isolation defaults on ModalRoot, DrawerRoot, Affix, and Fl
   expect(theme.components.FloatingWindow?.defaultProps).toMatchObject({ zIndex: Z_INDEX.popover });
 });
 
-it('writes color scheme preference to storage once per change in extension mode', async () => {
+it('resolves auto on the first commit and switches both roots before paint', async () => {
+  const env = shadowEnv();
+  const anchor = document.createElement('p');
+  document.body.append(anchor);
+  const satellite = createSatellite(anchor, null);
+  const satelliteRoot = satellite.hostElement.shadowRoot!.querySelector<HTMLElement>(`.${SURFACE_ROOT_CLASS}`)!;
+  onTestFinished(() => satellite.destroy());
+  const query = '(prefers-color-scheme: dark)';
+  const matchMedia = window.matchMedia.bind(window);
+  const media = matchMedia(query);
+  let dark = true;
+  Object.defineProperty(media, 'matches', { get: () => dark });
+  const add = vi.spyOn(media, 'addEventListener');
+  const remove = vi.spyOn(media, 'removeEventListener');
+  vi.spyOn(window, 'matchMedia').mockImplementation((q) => (q === query ? media : matchMedia(q)));
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+  });
+
+  const layouts: string[][] = [];
+  function Probe() {
+    return <output>{useVisual().activeColorScheme}</output>;
+  }
+  const app = (strategy: SurfaceEnv['colorSchemeStrategy']) => (
+    <Profiler
+      id="surface"
+      onRender={() => {
+        layouts.push([
+          env.rootElement.dataset.mantineColorScheme!,
+          satelliteRoot.dataset.mantineColorScheme!,
+          env.rootElement.querySelector('output')!.textContent!,
+        ]);
+      }}
+    >
+      <SurfaceProvider env={{ ...env, colorSchemeStrategy: strategy }}>
+        <VisualManagerRegistry persistentState={{ colorScheme: 'auto', direction: 'ltr', primaryColor: 'blue' }}>
+          <SatelliteOutlet />
+          <Probe />
+        </VisualManagerRegistry>
+      </SurfaceProvider>
+    </Profiler>
+  );
+  const view = render(app('extension'), { container: env.rootElement });
+  expect(layouts[0]).toEqual(['dark', 'dark', 'dark']);
+  expect(add).toHaveBeenCalledTimes(1);
+  act(() => {
+    dark = false;
+    media.dispatchEvent(new Event('change'));
+  });
+  expect(layouts.at(-1)).toEqual(['light', 'light', 'light']);
+  view.rerender(app('force-dark'));
+  expect(layouts.at(-1)).toEqual(['dark', 'dark', 'dark']);
+  expect(remove).toHaveBeenCalledWith('change', add.mock.calls[0]![1]);
+  await act(async () => {
+    await visualColorSchemeStorage.setValue('light');
+  });
+  view.rerender(app('extension'));
+  expect(layouts.at(-1)).toEqual(['light', 'light', 'light']);
+  expect(add).toHaveBeenCalledTimes(1);
+});
+
+it('writes a local edit once to extension storage and leaves the host head and storage alone', async () => {
   const env = shadowEnv();
   const write = vi.spyOn(visualColorSchemeStorage, 'setValue');
+  const hostStorage = { getItem: vi.fn(), setItem: vi.fn() };
+  vi.stubGlobal('localStorage', hostStorage);
+  const listen = vi.spyOn(window, 'addEventListener');
+  const head = new MutationObserver(() => {});
+  head.observe(document.head, { childList: true });
+  onTestFinished(() => {
+    head.disconnect();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
   function SchemeButton() {
     const visual = useVisual();
     return <button onClick={() => visual.setColorScheme('dark')}>dark</button>;
@@ -418,16 +468,16 @@ it('writes color scheme preference to storage once per change in extension mode'
     </SurfaceProvider>,
     { container: env.rootElement }
   );
-  try {
-    fireEvent.click(view.getByText('dark'));
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
-    expect(write).toHaveBeenCalledWith('dark');
-  } finally {
-    write.mockRestore();
-  }
+  fireEvent.click(view.getByText('dark'));
+  expect(head.takeRecords()).toHaveLength(0);
+  await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+  expect(write).toHaveBeenCalledWith('dark');
+  expect(hostStorage.getItem).not.toHaveBeenCalled();
+  expect(hostStorage.setItem).not.toHaveBeenCalled();
+  expect(listen.mock.calls.some(([type]) => type === 'storage')).toBe(false);
 });
 
-it('updates visual.setColorScheme when strategy changes from forced to extension without visual diff', () => {
+it('applies a local edit after releasing a forced strategy with the same visible scheme', () => {
   const env = shadowEnv();
   function SchemeButton() {
     const visual = useVisual();
@@ -443,8 +493,6 @@ it('updates visual.setColorScheme when strategy changes from forced to extension
   const view = render(app('force-light'), { container: env.rootElement });
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('light');
 
-  // Active scheme remains 'light' across the strategy switch, so VisualContextProvider
-  // must refresh when setColorScheme changes from direct persistence to Mantine's setter.
   view.rerender(app('extension'));
   fireEvent.click(view.getByText('dark'));
   expect(env.rootElement.getAttribute('data-mantine-color-scheme')).toBe('dark');

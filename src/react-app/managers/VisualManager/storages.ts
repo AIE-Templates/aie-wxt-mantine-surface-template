@@ -31,7 +31,6 @@ export const visualPrimaryColorStorage = storage.defineItem<VisualPrimaryColor>(
 function syncedPreference<T>(item: {
   getValue: () => Promise<T>;
   setValue: (next: T) => Promise<void>;
-  removeValue: () => Promise<void>;
   watch: (callback: (next: T) => void) => () => void;
 }) {
   const listeners = new Set<(next: T) => void>();
@@ -72,7 +71,6 @@ function syncedPreference<T>(item: {
   return {
     getValue: () => item.getValue(),
     setValue: (next: T) => persist(() => item.setValue(next)),
-    removeValue: () => persist(() => item.removeValue()),
     watch(callback: (next: T) => void) {
       listeners.add(callback);
       unwatch ??= item.watch(refresh);

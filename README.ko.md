@@ -201,7 +201,7 @@ Surface와 Satellite는 호스트 페이지의 단축키가 실행되지 않도�
 
 ### 엄격한 CSP 호환성
 
-호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——공유 adopted 스타일시트, WXT의 `:host` 리셋, Mantine의 테마 변수——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. `@property` 규칙은 shadow root 안에서는 동작하지 않으므로, 빌드 시 surface CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. 그 대가로 타입이 지정된 `--tw-*` 값(예: 그라디언트 색상 정지점)은 그곳에서 트랜지션 보간이 되지 않습니다. Mantine이 색상 구성표 전환 시 주입하는 전환용 `<style>`은 `keepTransitions: true`로 비활성화되어 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
+호스트 페이지가 엄격한 Content-Security-Policy(예: `script-src 'self'; style-src 'self'; style-src-attr 'none'`, `unsafe-inline` 없음)를 설정하더라도 surface는 정상적으로 동작합니다. 콘텐츠 스크립트 JS는 isolated world에서 실행되며(페이지가 아닌 확장 프로그램 자체 CSP의 적용을 받음), 모든 스타일은 shadow root 내부에 배치됩니다——공유 adopted 스타일시트, WXT의 `:host` 리셋, Mantine의 테마 변수——따라서 호스트의 `style-src`/`script-src`가 도달하지 못합니다. 호스트 `<head>`에는 아무것도 추가되지 않습니다. `@property` 규칙은 shadow root 안에서는 동작하지 않으므로, 빌드 시 surface CSS에서 이 규칙을 제거하고 대신 Tailwind의 요소별 폴백으로 해당 변수를 설정합니다. 그 대가로 타입이 지정된 `--tw-*` 값(예: 그라디언트 색상 정지점)은 그곳에서 트랜지션 보간이 되지 않습니다. 테마는 `useVisual()`로 변경합니다. `forceColorScheme`을 지정해도 Mantine의 기본 색상 구성표 setter를 기본 옵션으로 호출하면 호스트 `<head>`에 임시 스타일이 추가될 수 있습니다. `pnpm build` 후 `test-pages/csp-strict-host.html`로 검증하십시오.
 
 ---
 

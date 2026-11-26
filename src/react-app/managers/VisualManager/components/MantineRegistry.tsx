@@ -13,7 +13,7 @@
  * Internal component; application code renders ManagersRegistry instead.
  */
 
-import { useLayoutEffect, useMemo, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { useLayoutEffect, useMemo, type PropsWithChildren } from 'react';
 import {
   Affix,
   Combobox,
@@ -34,24 +34,29 @@ import {
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { useSurface } from '@/surface/context';
+import type { SurfaceColorScheme } from '@/surface/defs';
 import { appTheme } from '@/react-app/theme';
 import { SURFACE_ROOT_CLASS, Z_INDEX } from '@/constants';
-import type { VisualColorScheme, VisualDirection } from '../defs';
+import type { VisualDirection } from '../defs';
 import type { PrimaryPalette } from '../primaryColor';
 
-const noopSubscribe = () => () => {};
-const lightSnapshot = () => 'light' as const;
+// The extension owns persistence. Mantine's default manager uses the host's localStorage.
+const noopColorSchemeManager: MantineColorSchemeManager = {
+  get: (fallback) => fallback,
+  set: () => {},
+  clear: () => {},
+  subscribe: () => {},
+  unsubscribe: () => {},
+};
 
 export interface MantineRegistryProps extends PropsWithChildren {
-  colorSchemeManager: MantineColorSchemeManager;
-  colorScheme: VisualColorScheme;
+  colorScheme: SurfaceColorScheme;
   direction: VisualDirection;
   palette: PrimaryPalette['theme'];
   onDirectionChange: (direction: VisualDirection) => void;
 }
 
 export default function MantineRegistry({
-  colorSchemeManager,
   colorScheme,
   direction,
   palette,
@@ -126,20 +131,11 @@ export default function MantineRegistry({
     return merged;
   }, [env.portalTarget, env.scale, isShadow, palette]);
 
-  // An external source is opt-in; the core never imports host detection.
-  const source = typeof env.colorSchemeStrategy === 'object' ? env.colorSchemeStrategy : undefined;
-  const externalScheme = useSyncExternalStore(
-    source?.subscribe ?? noopSubscribe,
-    source?.getSnapshot ?? lightSnapshot,
-    source?.getSnapshot ?? lightSnapshot
-  );
-  const forceColorScheme = source
-    ? externalScheme
-    : env.colorSchemeStrategy === 'force-light'
-      ? 'light'
-      : env.colorSchemeStrategy === 'force-dark'
-        ? 'dark'
-        : undefined;
+  // Mantine applies forceColorScheme updates in a passive effect. Match the
+  // satellite roots during the commit so their CSS switches in the same paint.
+  useLayoutEffect(() => {
+    env.rootElement.setAttribute('data-mantine-color-scheme', colorScheme);
+  }, [env.rootElement, colorScheme]);
 
   // Mantine's DirectionProvider writes document.documentElement. Scope both
   // CSS direction and the context to this surface instead, including portals.
@@ -166,8 +162,8 @@ export default function MantineRegistry({
       <MantineProvider
         theme={theme}
         defaultColorScheme={colorScheme}
-        forceColorScheme={forceColorScheme}
-        colorSchemeManager={colorSchemeManager}
+        forceColorScheme={colorScheme}
+        colorSchemeManager={noopColorSchemeManager}
         cssVariablesSelector={isShadow ? `.${SURFACE_ROOT_CLASS}` : ':root'}
         getRootElement={() => env.rootElement}
       >

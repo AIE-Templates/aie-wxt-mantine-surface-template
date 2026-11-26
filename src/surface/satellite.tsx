@@ -31,12 +31,13 @@
  */
 
 import { useEffect, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { useComputedColorScheme, useDirection, useMantineTheme } from '@mantine/core';
+import { useDirection, useMantineContext, useMantineTheme } from '@mantine/core';
 import { createPortal } from 'react-dom';
 import { SATELLITE_TAG, SURFACE_ROOT_CLASS } from '@/constants';
 import { useSurface } from './context';
 import { bridgeFocus } from './focus-bridge';
 import { resolveIsolatedEvents } from './isolate-events';
+import { useSurfaceColorScheme } from './use-color-scheme';
 
 export interface SatelliteHandle {
   id: string;
@@ -401,7 +402,7 @@ export function releaseSatellites(surfaceShadowRoot: ShadowRoot): void {
 export function SatelliteOutlet() {
   const env = useSurface();
   const records = useSyncExternalStore(satellites.subscribe, satellites.getSnapshot);
-  const computedColorScheme = useComputedColorScheme('light');
+  const computedColorScheme = useSurfaceColorScheme(useMantineContext().colorScheme);
   const theme = useMantineTheme();
   const { dir } = useDirection();
 

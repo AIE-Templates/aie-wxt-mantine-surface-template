@@ -201,7 +201,7 @@ Surface 与 Satellite 会在各自的 shadow root 上拦截 `keydown` / `keyup` 
 
 ### 严格 CSP 兼容性
 
-即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——共享的 adopted 样式表、WXT 的 `:host` 重置和 Mantine 的主题变量——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容。`@property` 规则在 shadow root 内不生效，因此构建时会从 surface CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量；代价是带类型的 `--tw-*` 值（如渐变色标）在那里无法参与过渡插值。Mantine 切换配色方案时注入的过渡 `<style>` 已通过 `keepTransitions: true` 关闭。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
+即使宿主页设置了严格的 Content-Security-Policy（如 `script-src 'self'; style-src 'self'; style-src-attr 'none'`、无 `unsafe-inline`），surface 仍能正常工作。内容脚本 JS 运行在 isolated world（受扩展自身 CSP 约束，而非页面 CSP），所有样式都落在 shadow root 内部——共享的 adopted 样式表、WXT 的 `:host` 重置和 Mantine 的主题变量——宿主的 `style-src`/`script-src` 触及不到。宿主 `<head>` 不会被添加任何内容。`@property` 规则在 shadow root 内不生效，因此构建时会从 surface CSS 中去掉这些规则，改用 Tailwind 自带的逐元素兜底来设置这些变量；代价是带类型的 `--tw-*` 值（如渐变色标）在那里无法参与过渡插值。请通过 `useVisual()` 切换主题。即使设置了 `forceColorScheme`，用默认选项调用 Mantine 原生配色 setter 仍可能向宿主 `<head>` 插入临时样式。`pnpm build` 后用 `test-pages/csp-strict-host.html` 验证。
 
 ---
 
